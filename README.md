@@ -97,7 +97,7 @@ Reply:
  - ETX: 03
 
 The output is very similar for other European three-phase inverters in the Delta Solivia RPI series, such as an RPI M20A (part number 203FA0E0000), but will undoubtedly be different for other series. 
-On a North-American split-phase Delta Solivia 5.0 NA G4 TR inverter for instance, the data block is somewhat shorter (150 bytes), and the communication looks something like this:
+On a North-American split-phase Delta Solivia 5.0 NA G4 TR inverter for instance, the data block is somewhat shorter (150 bytes), and the [communication](https://forums.whirlpool.net.au/forum-replies.cfm?t=1901079&p=11#r204) looks something like this:
 
 ```
 02 05 01 02 60 01 85 FC 03 02 06 01 96 60 01 45
@@ -116,4 +116,4 @@ AC 9E 00 00 10 9D 00 79 01 6E 0C 3C 00 00 06 D6
 Some fields seem to be similar (the part number is EOE46010175, the serial is 220175101234000504, etc.), but working out all the details would still require quite a bit of work, which I haven't attempted. This is left as an excercise to the reader. ;-)
 
 
-
+Credits for figuring out the Delta Solivia communication protocol in general go to all the peopkle on [https://forums.whirlpool.net.au/forum-replies.cfm?t=1901079](this thread).
