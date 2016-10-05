@@ -2,6 +2,35 @@
 Documentation and a python-script for monitoring the status of Delta Solivia RPI PV-inverters
 
 
+
+### Physical connection
+
+Delta Solivia inverters can communicate with external equipment over [RS485](https://en.wikipedia.org/wiki/RS-485), a communication standard that specifies a single-duplex serial bus with only two wires (usually marked data + and data -, or A and B). Communication cables can be quite long, up to a kilometre or more, provided that good quality twisted-pair cables are used, bus-termination is done properly and data-speeds are not too high. Using shielded cable and surge protectors or opto-isolation is recommended, especially if the cable is potentially exposed to indirect lightning discharges (e.g. on a roof), to reduce the risk of induction damage to the equipment. All devices on a bus are connected in series, and the first and last device on the wire should have a 120 Ohm terminating resistor. 
+
+Delta Solivia inverters typically have a small communication module, which usually contains a 6-pin push-in terminal block or an 8-pin RJ-45 socket, and a DIP-switch for termination. Pins 1 and 2 of the terminal block are 12V and GND, and should probably not be used. Pins 3 and 5 are data +, pins 4 and 6 are data -. There is only one RS485-port, the two connectors are simply provided for convenience. If your communication module has an RJ45-connector rather than a terminal block, data + is on pin 5 and data - is on pin 4 of the RJ45-socket. The DIP-switch can be used to switch bus termination on or off on a given inverter. Only the first and the last device on the bus should be terminated. If you only have one inverter and one computer on the bus, both devices should be terminated.
+
+Note that not all RS485-adapters have a built-in terminator, and many devices do not even specify clearly whether the device is terminated or not. For short cables and low transmission speeds, this will not matter much, but you may run into trouble with long cables. When in doubt, choose an RS485-adapter that clearly specifies whether or not it is terminated, or that allows you to configure the termination (e.g. the [FTDI USB-RS485](http://www.ftdichip.com/Products/Cables/USBRS485.htm)).
+ 
+
+### RS485 and Linux
+
+Generally, there are two kinds of RS485-devices for Linux. 
+Some RS485-interfaces use an RS485-transceiver (often a MAX485 or derivative), which is hooked up to a TTL or RS232 serial port (e.g. `/dev/ttyS0`). Examples include RS485-shields for the Raspberry Pi:
+
+ - The [Sparkfun RS485 Shield V3](https://www.sparkfun.com/products/13706)
+ - [RS485-shield at Cooking Hacks](https://www.cooking-hacks.com/documentation/tutorials/rs-485-module-shield-tutorial-for-arduino-raspberry-pi-intel-galileo/)
+ - [Various RS485-to-RS232 adapters at Shenzen Union Electronics](http://www.unioncables.com/c/rs232-to-rs485-rs422-cables_0039)
+
+USB RS485-interfaces, which are very common these days, use some kind of USB-to-serial chip (often FTDI or CH341), which communicates with a driver in the Linux kernel. The driver creates an USB serial device (e.g. `/dev/ttyUSB0`).
+
+ - [FTDI USB-RS485](http://www.ftdichip.com/Products/Cables/USBRS485.htm)
+ - [Various USB-RS485-adapters at Shenzen Union Electronics](http://www.unioncables.com/c/usb-rs485-rs422-cables_0012)
+
+By default, serial-devices in Unix-derived operating systems are opened in [cooked I/O mode](https://en.wikipedia.org/wiki/Cooked_mode), whereby the system does some processing of line breaks and special characters. When talking to devices that use a binary serial protocol (such as PV-inverters), care should be taken to disable the processing of special characters. If you have direct control over system calls (e.g. in C), it should suffice to open the serial device in raw or non-canonical mode. Unfortunately, good documentation on how to do this properly is hard to find and read. Check out the [man page](https://linux.die.net/man/3/cfmakeraw) of the `cfmakeraw()` for (some) details. When using some higher-level interface or library (e.g. in languages such as Python), you often have little direct control over the serial device settings, and unexpected behaviour and data loss may occur. Setting the device to raw-mode using a library or the `stty` command does not always disable all processing of special characters. I have provided a little shell-script that will put a device into raw-mode and will undefine all special control characters on the specified device, e.g.: `./unset_serial_ctrlchars.sh /dev/ttyUSB0`
+
+
+### Communication protocol
+
 Delta Solivia inverters use a simple serial protocol over RS485. The default baud rate seems to be 19200 bits per second, although this can be changed in the inverter settings. You may need to lower it if you have a really long cable, otherwise the default should be fine. The RS485 bus-ID can also be set for each inverter. The default value is 001, but each inverter should be given a unique ID if they're connected to the same bus. The bus needs to have a terminating resistor at each end, the inverters are fitted with a DIP-switch next to the RS485-connector to enable (1) or disable (0) bus termination.
 
 Messages on the RS485-bus look like this:
@@ -10,13 +39,13 @@ Messages on the RS485-bus look like this:
  - 1 byte ENQ (0x05 for a request) or ACK (0x06 for a response)
  - 1 byte inverter ID on the RS485-bus (0x01 for the first inverter, 0x02 for the second, etc.)
  - 1 byte LEN, number of bytes to follow, excluding CRC and ETX
- - 2 bytes data address, e.g. 0x00 0x00 to request the inverter type, 0x60 0x01 to request a block of data, etc.
+ - 2 bytes CMD, command and subcommand, e.g. 0x00 0x00 to request the inverter type, 0x60 0x01 to request a block of data, etc.
  - data bytes, only in case of a reply
  - 2 bytes CRC-16, over preceding bytes excluding STX, LSB first (little-endian)
  - 1 byte ETX (0x03), end of message
 
 Unfortunately, exactly which variables are assigned to which data address seems to vary between inverter models. 
-Moreover, a request for data on address 0x60 0x01 will return a block of data, which seems to contain the values of several important variables.
+Moreover, a request for data using the command 0x60 0x01 will return a block of data, which seems to contain the values of several important variables.
 
 For Delta Solivia RPI Commercial European three-phase inverters, a request and reply pair may look roughly like this, as read on a Linux-machine with an RS485 USB-dongle:
 
@@ -40,17 +69,19 @@ The data breaks down as follows, for as far as I've been able to figure out:
 
 Request:
 
- - STX, ENQ, ID: 02 05 01
+ - STX, ENQ: 02 05  
+ - ID: 01
  - LEN: 02
- - Address: 60 01
+ - CMD: 60 01
  - CRC: 85 FC
  - ETX: 03
 
 Reply:
 
- - STX, ACK, ID: 02 06 01
+ - STX, ACK: 02 06  
+ - ID: 01
  - LEN, e.g. 9D for 157 bytes
- - Address: 60 01
+ - CMD: 60 01
  - 11 bytes part number, e.g. 153FA0E0000 for an RPI M15A
  - 18 bytes serial, e.g. 241051505003463223
  - 6 bytes unknown, e.g. 090100
@@ -116,4 +147,8 @@ AC 9E 00 00 10 9D 00 79 01 6E 0C 3C 00 00 06 D6
 Some fields seem to be similar (the part number is EOE46010175, the serial is 220175101234000504, etc.), but working out all the details would still require quite a bit of work, which I haven't attempted. This is left as an excercise to the reader. ;-)
 
 
+### Credits
+
 Credits for figuring out the Delta Solivia communication protocol in general go to all the peopkle on [https://forums.whirlpool.net.au/forum-replies.cfm?t=1901079](this thread).
+Special thanks go out to Bram Langen for figuring out how to really disable all special character processing on a Linux serial device.
+    
