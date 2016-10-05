@@ -17,16 +17,16 @@ Note that not all RS485-adapters have a built-in terminator, and many devices do
 Generally, there are two kinds of RS485-devices for Linux. 
 Some RS485-interfaces use an RS485-transceiver (often a MAX485 or derivative), which is hooked up to a TTL or RS232 serial port (e.g. `/dev/ttyS0`). Examples include RS485-shields for the Raspberry Pi:
 
- - The [Sparkfun RS485 Shield V3](https://www.sparkfun.com/products/13706)
- - [RS485-shield at Cooking Hacks](https://www.cooking-hacks.com/documentation/tutorials/rs-485-module-shield-tutorial-for-arduino-raspberry-pi-intel-galileo/)
- - [Various RS485-to-RS232 adapters at Shenzen Union Electronics](http://www.unioncables.com/c/rs232-to-rs485-rs422-cables_0039)
+ - [The Sparkfun RS485 Shield V3](https://www.sparkfun.com/products/13706) (termination unspecified, probably unterminated)
+ - [Libelium RS485-shield with XBee-footprint](https://www.cooking-hacks.com/documentation/tutorials/rs-485-module-shield-tutorial-for-arduino-raspberry-pi-intel-galileo/) (termination unspecified, probably unterminated)
+ - [RS485-to-RS232 adapters at Shenzen Union Electronics](http://www.unioncables.com/c/rs232-to-rs485-rs422-cables_0039) (probably unterminated)
 
 USB RS485-interfaces, which are very common these days, use some kind of USB-to-serial chip (often FTDI or CH341), which communicates with a driver in the Linux kernel. The driver creates an USB serial device (e.g. `/dev/ttyUSB0`).
 
- - [FTDI USB-RS485](http://www.ftdichip.com/Products/Cables/USBRS485.htm)
+ - [FTDI USB-RS485](http://www.ftdichip.com/Products/Cables/USBRS485.htm) (termination configurable)
  - [Various USB-RS485-adapters at Shenzen Union Electronics](http://www.unioncables.com/c/usb-rs485-rs422-cables_0012)
 
-By default, serial-devices in Unix-derived operating systems are opened in [cooked I/O mode](https://en.wikipedia.org/wiki/Cooked_mode), whereby the system does some processing of line breaks and special characters. When talking to devices that use a binary serial protocol (such as PV-inverters), care should be taken to disable the processing of special characters. If you have direct control over system calls (e.g. in C), it should suffice to open the serial device in raw or non-canonical mode. Unfortunately, good documentation on how to do this properly is hard to find and read. Check out the [man page](https://linux.die.net/man/3/cfmakeraw) of the `cfmakeraw()` for (some) details. When using some higher-level interface or library (e.g. in languages such as Python), you often have little direct control over the serial device settings, and unexpected behaviour and data loss may occur. Setting the device to raw-mode using a library or the `stty` command does not always disable all processing of special characters. I have provided a little shell-script that will put a device into raw-mode and will undefine all special control characters on the specified device, e.g.: `./unset_serial_ctrlchars.sh /dev/ttyUSB0`
+By default, serial-devices in Unix-derived operating systems are opened in [cooked I/O mode](https://en.wikipedia.org/wiki/Cooked_mode), whereby the system does some processing of line breaks and special characters. When talking to devices that use a binary serial protocol (such as PV-inverters), care should be taken to disable the processing of special characters. If you have direct control over system calls (e.g. in C), it should suffice to open the serial device in raw or non-canonical mode. Unfortunately, good documentation on how to do this properly is hard to find and read. Check out the [man page](https://linux.die.net/man/3/cfmakeraw) of the `cfmakeraw()` function for (some) details. When using some higher-level interface or library (e.g. in languages such as Python), you often have little direct control over the serial device settings, and unexpected behaviour and data loss may occur. Setting the device to raw-mode using a library or the `stty` command does not always disable all processing of special characters. I have provided a little shell-script that will put a device into raw-mode and will undefine all special control characters on the specified device, e.g.: `./unset_serial_ctrlchars.sh /dev/ttyUSB0`
 
 
 ### Communication protocol
@@ -149,6 +149,6 @@ Some fields seem to be similar (the part number is EOE46010175, the serial is 22
 
 ### Credits
 
-Credits for figuring out the Delta Solivia communication protocol in general go to all the peopkle on [https://forums.whirlpool.net.au/forum-replies.cfm?t=1901079](this thread).
-Special thanks go out to Bram Langen for figuring out how to really disable all special character processing on a Linux serial device.
+Credits for figuring out the Delta Solivia communication protocol in general go to all the people on [https://forums.whirlpool.net.au/forum-replies.cfm?t=1901079](this thread).
+Special thanks go out to Bram Langen for figuring out that control character processing may interfere with communications in Python, and how to really disable all special character processing on a Linux serial device.
     
