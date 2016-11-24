@@ -46,7 +46,7 @@ Messages on the RS485-bus look like this:
  - 2 bytes CRC-16, over preceding bytes excluding STX, LSB first (little-endian)
  - 1 byte ETX (0x03), end of message
 
-Unfortunately, exactly which variables are assigned to which data address seems to vary between inverter models. 
+Unfortunately, exactly which variables are assigned to which command or data address seems to vary between inverter models. 
 Moreover, a request for data using the command 0x60 0x01 will return a block of data, which seems to contain the values of several important variables.
 
 For Delta Solivia RPI Commercial European three-phase inverters, a request and reply pair may look roughly like this, as read on a Linux-machine with an RS485 USB-dongle:
