@@ -175,19 +175,17 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
 
     while offset >= 0:                  # Look for inverter data blocks in our serial data
         
-        offset = data.find(b'\x9d\x60\x01', idx)    # Look for a reply to command 0x60 subcommand 0x01
+        offset = data.find(b'\x60\x01', idx)        # Look for a reply to command 0x60 subcommand 0x01
                                                     # TODO: we should actually look for STX (0x02 0x06), and then match command 0x60 0x01
         
         if (offset >= 0):                           # Found a reply
             
-            inv_id = data[offset - 1]               # Inverter ID on the RS485-bus
+            inv_id = data[offset - 2]               # Inverter ID on the RS485-bus
             inv_idx = inv_id - 1
             if verbose:
                 print ("Found reply block for inverter ID", inv_id)
                 
-            last_reply = time                       # TODO: change this, it should record last data seen, not last reply
-
-            start = offset + 3                      # Start of the actual data (TODO: also check the CRC and the data length)
+            start = offset + 2                      # Start of the actual data (TODO: also check the CRC and the data length)
 
             b = bytes(data[start:start + structlen])    # Get a block of bytes corresponding to the struct 
             if verbose:
