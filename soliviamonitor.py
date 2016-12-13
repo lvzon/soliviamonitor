@@ -114,12 +114,12 @@ if verbose:
 
 # Housekeeping variables for sampling and buffering of data
 
-csvwriter_raw = ()          # CSV output for "raw" inverter data (written to RAM-disk, not really needed except for debugging)
-csvwriter_subset = ()       # CSV output for processed inverter data subset
-samples = ()                # Data-samples stored in memory, to reduce flash-writes
-total_energy_Wh = ()        # Total energy counter for each inverter 
-total_energy_Wh_prev = ()   # Previously reported energy count, useful for reporting energy to a server
-lastsampletime = ()         # Time of last inverter read
+csvwriter_raw = []          # CSV output for "raw" inverter data (written to RAM-disk, not really needed except for debugging)
+csvwriter_subset = []       # CSV output for processed inverter data subset
+samples = []                # Data-samples stored in memory, to reduce flash-writes
+total_energy_Wh = []        # Total energy counter for each inverter 
+total_energy_Wh_prev = []   # Previously reported energy count, useful for reporting energy to a server
+lastsampletime = []         # Time of last inverter read
 
 for inv in range(0,inverters):
     samples[inv] = list()
