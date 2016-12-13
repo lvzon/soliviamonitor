@@ -177,7 +177,7 @@ def find_response (data, start_offset):
         
         if offset < 0:
             return None
-        else if verbose:
+        elif verbose:
             print("Found possible response at offset", offset, "(started at", start_offset, ")")
         
         inv_id = data[offset + 2]               # Inverter ID on the RS485-bus 2
