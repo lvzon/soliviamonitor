@@ -138,7 +138,7 @@ for inv in range(0,inverters):
     total_energy_Wh.append(0) 
     total_energy_Wh_prev.append(0)
     csvwriter_subset.append(0)   
-    csvfile = open('/tmp/inv' + string(inv + 1) + '.csv', "a")
+    csvfile = open('/tmp/inv' + str(inv + 1) + '.csv', "a")
     csvwriter_raw.append(csv.writer(csvfile, delimiter='\t'))
     lastsampletime.append(datetime.datetime.now())
 
