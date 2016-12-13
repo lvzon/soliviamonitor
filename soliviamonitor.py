@@ -196,7 +196,7 @@ def find_response (data, start_offset):
         if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
             
             if verbose:
-                print("ETX at", offset + 6 data_length + 2, "is", etx, "but should be 3, skipping match at", offset)
+                print("ETX at", offset + 6 + data_length + 2, "is", etx, "but should be 3, skipping match at", offset)
                 print(rvals)
                 
             offset = offset + 1                 # Look for next response
