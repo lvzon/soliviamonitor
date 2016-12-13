@@ -177,16 +177,18 @@ def find_response (data, start_offset):
         
         if offset < 0:
             return None
+        else if verbose:
+            print("Found possible response at offset", offset, "(started at", start_offset, ")")
         
-        inv_id = data[offset + 2]               # Inverter ID on the RS485-bus
-        length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX)
-        cmd = data[offset + 4]                  # Command ID
-        subcmd = data[offset + 5]               # Subcommand ID
-        data_offset = offset + 6                # Start of data
-        data_length = length - 2                # Length of data
+        inv_id = data[offset + 2]               # Inverter ID on the RS485-bus 2
+        length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX) 157
+        cmd = data[offset + 4]                  # Command ID 96
+        subcmd = data[offset + 5]               # Subcommand ID 1
+        data_offset = offset + 6                # Start of data 17 (11 + 6)
+        data_length = length - 2                # Length of data 155
         crc_lsb = data[offset + 4 + length]     # Least-significant byte of CRC-16 over preceding bytes after STX
         crc_msb = data[offset + 4 + length + 1] # Most-significant byte of CRC-16 over preceding bytes after STX
-        etx = data[offset + 4 + length + 2]     # ETX-byte to signify end of message, should be 0x03
+        etx = data[offset + 6 + data_length + 2]     # ETX-byte to signify end of message, should be 0x03
         
         rvals = {'offset': offset, 'data_offset': data_offset, 'inv_id': inv_id, 'length': length, \
                  'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
@@ -194,7 +196,7 @@ def find_response (data, start_offset):
         if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
             
             if verbose:
-                print("ETX is", etx, "but should be 3, skipping match at", offset)
+                print("ETX at", offset + 6 data_length + 2, "is", etx, "but should be 3, skipping match at", offset)
                 print(rvals)
                 
             offset = offset + 1                 # Look for next response
