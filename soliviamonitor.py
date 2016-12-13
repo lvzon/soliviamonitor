@@ -114,22 +114,6 @@ if verbose:
 
 # Housekeeping variables for sampling and buffering of data
 
-csvwriter_raw = []          # CSV output for "raw" inverter data (written to RAM-disk, not really needed except for debugging)
-csvwriter_subset = []       # CSV output for processed inverter data subset
-samples = []                # Data-samples stored in memory, to reduce flash-writes
-total_energy_Wh = []        # Total energy counter for each inverter 
-total_energy_Wh_prev = []   # Previously reported energy count, useful for reporting energy to a server
-lastsampletime = []         # Time of last inverter read
-
-for inv in range(0,inverters):
-    samples[inv] = list()
-    total_energy_Wh[inv] = 0 
-    total_energy_Wh_prev[inv] = 0
-    csvwriter_subset[inv] = 0   
-    csvfile = open('/tmp/inv' + string(inv + 1) + '.csv', "a")
-    csvwriter_raw[inv] = csv.writer(csvfile, delimiter='\t')
-    lastsampletime[inv] = datetime.datetime.now()
-
 lastlogtime = 0         # Time of last data write
 sampleinterval = 60     # Inverter sampling interval in seconds 
 loginterval = 60*10     # Data write-interval in seconds 
@@ -139,6 +123,24 @@ data = bytes()
 
 time = datetime.datetime.now()      # Current time
 last_data = time - time             # Time of last reply-block (set to zero)
+
+csvwriter_raw = []          # CSV output for "raw" inverter data (written to RAM-disk, not really needed except for debugging)
+csvwriter_subset = []       # CSV output for processed inverter data subset
+samples = []                # Data-samples stored in memory, to reduce flash-writes
+total_energy_Wh = []        # Total energy counter for each inverter 
+total_energy_Wh_prev = []   # Previously reported energy count, useful for reporting energy to a server
+lastsampletime = []         # Time of last inverter read
+
+# Build lists
+
+for inv in range(0,inverters):
+    samples.append(list())
+    total_energy_Wh.append(0) 
+    total_energy_Wh_prev.append(0)
+    csvwriter_subset.append(0)   
+    csvfile = open('/tmp/inv' + string(inv + 1) + '.csv', "a")
+    csvwriter_raw.append(csv.writer(csvfile, delimiter='\t'))
+    lastsampletime.append(datetime.datetime.now())
 
 
 def send_request (inv_id, cmd):
