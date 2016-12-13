@@ -166,11 +166,17 @@ def find_response (data, start_offset):
 
     """ Look for valid replies in serial data, returns a hash with offset, length, inverter_id, command, subcommand """
     
+    if start_offset < 0:
+        return None
+    
     offset = start_offset
     
     while offset < len(data) and offset >= start_offset:
         
         offset = data.find(b'\x02\x06', offset)    # Responses start with 2 bytes, STX (0x02) and ACK (0x06)
+        
+        if offset < 0:
+            return None
         
         inv_id = data[offset + 2]               # Inverter ID on the RS485-bus
         length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX)
