@@ -111,33 +111,31 @@ for var in rvars:
 if verbose:
     print (varheader)
 
-# Open CSV output files for "raw" inverter data (written to RAM-disk, not really needed except for debugging)
-# TODO: make the number of inverters variable (now hard-coded to 2)
-
-of_csv_1  = open('/tmp/inv1.csv', "a")
-wr_csv_1 = csv.writer(of_csv_1, delimiter='\t')
-wr_csv_1.writerow(["time"] + varheader)
-
-of_csv_2  = open('/tmp/inv2.csv', "a")
-wr_csv_2 = csv.writer(of_csv_2, delimiter='\t')
-wr_csv_2.writerow(["time"] + varheader)
-
-csvwriter_raw = (wr_csv_1, wr_csv_2)
-csvwriter_subset = [0,0]
 
 # Housekeeping variables for sampling and buffering of data
-# TODO: make the number of inverters variable (now hard-coded to 2)
 
-lastsampletime = [datetime.datetime.now(), datetime.datetime.now()] # Time of last inverter read
+csvwriter_raw = ()          # CSV output for "raw" inverter data (written to RAM-disk, not really needed except for debugging)
+csvwriter_subset = ()       # CSV output for processed inverter data subset
+samples = ()                # Data-samples stored in memory, to reduce flash-writes
+total_energy_Wh = ()        # Total energy counter for each inverter 
+total_energy_Wh_prev = ()   # Previously reported energy count, useful for reporting energy to a server
+lastsampletime = ()         # Time of last inverter read
+
+for inv in range(0,inverters):
+    samples[inv] = list()
+    total_energy_Wh[inv] = 0 
+    total_energy_Wh_prev[inv] = 0
+    csvwriter_subset[inv] = 0   
+    csvfile = open('/tmp/inv' + string(inv + 1) + '.csv', "a")
+    csvwriter_raw[inv] = csv.writer(csvfile, delimiter='\t')
+    lastsampletime[inv] = datetime.datetime.now()
+
 lastlogtime = 0         # Time of last data write
 sampleinterval = 60     # Inverter sampling interval in seconds 
 loginterval = 60*10     # Data write-interval in seconds 
 
 idx = 0
 data = bytes()
-samples = (list(), list())          # Data-samples stored in memory, to reduce flash-writes
-total_energy_Wh = [0, 0]            # Total energy counter for each inverter 
-total_energy_Wh_prev = [0, 0]       # Previously reported energy count, useful for reporting energy to a server
 
 time = datetime.datetime.now()      # Current time
 last_data = time - time             # Time of last reply-block (set to zero)
@@ -154,6 +152,10 @@ def send_request (inv_id, cmd):
     lo = crc & (0xff)
     high = (crc >> 8) & 0xff
     data = struct.pack('BBBB%dsBBB' %len(cmd), 2, 5, inv_id, len(cmd), cmd, lo, high, 3)
+    
+    if verbose:
+        print("Sending data query to inverter", inv_id)
+        
     connection.write(data)
     connection.flush()
 
@@ -200,7 +202,7 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
                     print(u)
                 
                 serial = str(u[1], "ascii")         # Get the inverter serial number
-                
+                                
                 csvw = csvwriter_subset[inv_idx]    # Get output file object
                 
                 if not csvw:                        
@@ -227,7 +229,7 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
                 
                 total_energy_Wh[inv_idx] = u[varlookup["energytotal"]] * 1000
                 if verbose:
-                    print("Total energy in Wh:", total_energy_Wh[inv_idx])
+                    print("Inverter", serial, "reports", total_energy_Wh[inv_idx], "Wh total energy")
                 
                 # Determine if it's time to store a new sample and/or write our data
                 
@@ -252,23 +254,22 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
 
                 if lastlogtime == 0 or round(t_log.seconds) >= loginterval:
                     
-                    # It's time to write our data (TODO: make number of inverters variable)
-                    
-                    for sample in samples[0]:
-                        csvwriter_subset[0].writerow(sample)
-                    for sample in samples[1]:
-                        csvwriter_subset[1].writerow(sample)
+                    for inv in range(0,inverters):
                         
-                    samples = (list(), list())              # Clear sample-lists
+                        # Write our data
+                        
+                        for sample in samples[inv]:
+                            csvwriter_subset[inv].writerow(sample)
+                            
+                        samples[inv] = list()   # Clear sample-lists
+                        
+                        # Update total energy counters
+                    
+                        if total_energy_Wh[inv] and total_energy_Wh[inv] != total_energy_Wh_prev[inv]:
+                            total_energy_Wh_prev[inv] = total_energy_Wh[inv]
+                        
                     lastlogtime = datetime.datetime.now()   # Update last log time
                                       
-                    # Update total energy counters (TODO: make number of inverters variable)
-                    
-                    if total_energy_Wh[0] and total_energy_Wh[0] != total_energy_Wh_prev[0]:
-                        total_energy_Wh_prev[0] = total_energy_Wh[0]
-                    if total_energy_Wh[1] and total_energy_Wh[1] != total_energy_Wh_prev[1]:
-                        total_energy_Wh_prev[1] = total_energy_Wh[1]
-                        
                 idx += offset + 1   # Advance index into the data we read from serial
                 
             else:
