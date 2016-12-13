@@ -133,7 +133,7 @@ lastsampletime = []         # Time of last inverter read
 
 # Build lists
 
-for inv in range(0,inverters):
+for inv in range(0, inverters):
     samples.append(list())
     total_energy_Wh.append(0) 
     total_energy_Wh_prev.append(0)
@@ -162,6 +162,48 @@ def send_request (inv_id, cmd):
     connection.flush()
 
 
+def find_response (data, start_offset):
+
+    """ Look for valid replies in serial data, returns a hash with offset, length, inverter_id, command, subcommand """
+    
+    offset = start_offset
+    
+    while offset < len(data) and offset >= start_offset:
+        
+        offset = data.find(b'\x02\x06', offset)    # Responses start with 2 bytes, STX (0x02) and ACK (0x06)
+        
+        inv_id = data[offset + 2]               # Inverter ID on the RS485-bus
+        length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX)
+        cmd = data[offset + 4]                  # Command ID
+        subcmd = data[offset + 5]               # Subcommand ID
+        data_offset = offset + 6                # Start of data
+        data_length = length - 2                # Length of data
+        crc_lsb = data[offset + 4 + length]     # Least-significant byte of CRC-16 over preceding bytes after STX
+        crc_msb = data[offset + 4 + length + 1] # Most-significant byte of CRC-16 over preceding bytes after STX
+        etx = data[offset + 4 + length + 2]     # ETX-byte to signify end of message, should be 0x03
+        
+        rvals = {'offset': offset, 'data_offset': data_offset, 'inv_id': inv_id, 'length': length, \
+                 'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
+        
+        if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
+            
+            if verbose:
+                print("ETX is", etx, "but should be 3, skipping match at", offset)
+                print(rvals)
+                
+            offset = offset + 1                 # Look for next response
+            
+        else:                                   # ETX is 0x03, we probably have a valid data block
+            
+            # TODO: check CRC
+            
+            print("Found valid response:", rvals);
+            
+            return rvals;
+            
+    return None
+            
+
 while True:     # Main loop (TODO: allow a clean exit of the program, without data loss)
 
     connection.timeout = 1.0    # Timeout for serial data read, in seconds
@@ -179,23 +221,33 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
 
     while offset >= 0:                  # Look for inverter data blocks in our serial data
         
-        offset = data.find(b'\x60\x01', idx)        # Look for a reply to command 0x60 subcommand 0x01
-                                                    # TODO: we should actually look for STX (0x02 0x06), and then match command 0x60 0x01
+        rvals = find_response(data, idx)   # Look for a response
         
-        if (offset >= 0):                           # Found a reply
+        if rvals:
             
-            inv_id = data[offset - 2]               # Inverter ID on the RS485-bus
+            offset = rvals['offset']
+        
+            inv_id = rvals['inv_id']       # Inverter ID on the RS485-bus
             inv_idx = inv_id - 1
+            
+            cmd = rvals['cmd']
+            subcmd = rvals['subcmd']
+            
+            data_offset = rvals['data_offset']
+            data_length = rvals['data_length']
+                          
             if verbose:
-                print ("Found reply block for inverter ID", inv_id)
+                print ("Found reply block for inverter ID", inv_id, "command", cmd, "subcommand", subcmd, "data length", data_length)
                 
-            start = offset + 2                      # Start of the actual data (TODO: also check the CRC and the data length)
+            start = data_offset                         # Start of the actual data
 
             b = bytes(data[start:start + structlen])    # Get a block of bytes corresponding to the struct 
             if verbose:
                 print (time.isoformat(), "Data length:", len(b))
                 
-            if len(b) == structlen:
+            # Look for a reply to command 0x60 subcommand 0x01
+            
+            if len(b) == structlen and cmd == 0x60 and subcmd == 0x01:
                 
                 # We have a data block, unpack it and do something with the data
                 
@@ -256,7 +308,7 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
 
                 if lastlogtime == 0 or round(t_log.seconds) >= loginterval:
                     
-                    for inv in range(0,inverters):
+                    for inv in range(0, inverters):
                         
                         # Write our data
                         
@@ -288,7 +340,7 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
                 
     t_data = time - last_data
     
-    for inv in sequence(inverters):        
+    for inv in range(0, inverters):        
         # If we haven't seen any data or reply in a while, send a request
         t_sample = time - lastsampletime[inv]
         if (t_data.seconds >= 1 and t_sample.seconds >= sampleinterval):          
