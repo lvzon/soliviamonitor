@@ -44,6 +44,8 @@ connection = serial.Serial('/dev/ttyUSB0',19200,timeout=0.2);   # Serial device
 
 # Variables in the data-block of a Delta RPI M-series inverter,
 # as far as I've been able to establish their meaning.
+# Format is: 
+# name, struct-definition, bytes, multiplier-exponent (10^x), unit, SunSpec equivalent
 
 rvars = (("partno", "11s", 11),
         ("serial", "18s", 18),
@@ -108,8 +110,8 @@ for var in rvars:
     varlookup[var[0]] = idx
     idx += 1
 
-if verbose:
-    print (varheader)
+#if verbose:
+#    print (varheader)
 
 
 # Housekeeping variables for sampling and buffering of data
@@ -210,6 +212,7 @@ def find_response (data, start_offset):
             return rvals;
             
     return None
+
             
 
 while True:     # Main loop (TODO: allow a clean exit of the program, without data loss)
@@ -259,12 +262,16 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
                 
                 # We have a data block, unpack it and do something with the data
                 
-                u = struct.unpack(structstr, b)     # Unpack the struct into a list of variables
-                if verbose:
-                    print(u)
-                
-                serial = str(u[1], "ascii")         # Get the inverter serial number
-                                
+                try:
+                    u = struct.unpack(structstr, b)     # Unpack the struct into a list of variables
+                    serial = str(u[1], "ascii")         # Get the inverter serial number
+                    #if verbose:
+                    #    print(u)                    
+                    
+                except:
+                    error = sys.exc_info()[0]
+                    print(time(), error, "while decoding inverter data block")
+                                        
                 csvw = csvwriter_subset[inv_idx]    # Get output file object
                 
                 if not csvw:                        
