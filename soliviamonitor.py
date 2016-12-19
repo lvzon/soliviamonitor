@@ -182,6 +182,8 @@ def write_samples(use_report):
             
             if reporting and use_report:
                 try:
+                    if verbose:
+                        print("Reporting energy total to server, inverter index", inv)
                     report.send_total(inv, total_energy_Wh[inv])
                 except:
                     print("Error while calling report.send_total:", sys.exc_info()[0])
@@ -361,6 +363,8 @@ while True:     # Main loop
                     if write_header:
                         csvw.writerow(["time"] + varheader[12:])    # Write header line
                     if reporting:
+                        if verbose:
+                            print("Initial report of energy total to server, inverter index", inv_idx)
                         report.init(inv_idx, serial)
                         report.send_total(inv_idx, total_energy_Wh[inv_idx])
                              
