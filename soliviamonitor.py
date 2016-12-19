@@ -152,7 +152,7 @@ for inv in range(0, inverters):
     lastsampletime.append(datetime.datetime.now())
 
 
-def write_samples():
+def write_samples(use_report):
     
     ''' Write samples to CSV-files '''
     
@@ -190,8 +190,8 @@ def signal_handler(signal, frame):
     
     ''' Signal handler to write data when a lethal signal is received '''
     
-    print(time(), "Received signal:", signal)
-    write_samples()
+    print("Received signal:", signal)
+    write_samples(False)
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -383,7 +383,7 @@ while True:     # Main loop
                     lastsampletime[inv_idx] = datetime.datetime.now()               # Update last sample time
 
                 if lastlogtime == 0 or round(t_log.seconds) >= loginterval:
-                    write_samples()
+                    write_samples(True)
                     
                 idx += offset + 1   # Advance index into the data we read from serial
                 
