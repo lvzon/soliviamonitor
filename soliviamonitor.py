@@ -260,11 +260,11 @@ def find_response (data, start_offset):
             
             # TODO: check CRC
             
-            crcval = crc.CRC16.calcString(data[offset + 1 : offset + 4 + length])
-            if crc_lsb != (crcval & 0xff):
-                print("WARNING: CRC LSB should be", crc_lsb, "but seems to be", crcval & 0x0ff)
-            if crc_msb != (crcval >> 8):
-                print("WARNING: CRC MSB should be", crc_msb, "but seems to be", crcval >> 8)
+            #crcval = crc.CRC16.calcString(data[offset + 1 : offset + 4 + length])
+            #if crc_lsb != (crcval & 0xff):
+            #    print("WARNING: CRC LSB should be", crc_lsb, "but seems to be", crcval & 0x0ff)
+            #if crc_msb != (crcval >> 8):
+            #    print("WARNING: CRC MSB should be", crc_msb, "but seems to be", crcval >> 8)
             
             print("Found valid response:", rvals);
             
