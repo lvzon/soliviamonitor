@@ -234,47 +234,53 @@ def find_response (data, start_offset):
     
     while offset < len(data) and offset >= start_offset:
         
-        offset = data.find(b'\x02\x06', offset)    # Responses start with 2 bytes, STX (0x02) and ACK (0x06)
+        try:
         
-        if offset < 0:
-            return None
-        elif verbose:
-            print("Found possible response at offset", offset, "(started at", start_offset, ")")
-        
-        inv_id = data[offset + 2]               # Inverter ID on the RS485-bus 2
-        length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX) 157
-        cmd = data[offset + 4]                  # Command ID 96
-        subcmd = data[offset + 5]               # Subcommand ID 1
-        data_offset = offset + 6                # Start of data 17 (11 + 6)
-        data_length = length - 2                # Length of data 155
-        crc_lsb = data[offset + 4 + length]     # Least-significant byte of CRC-16 over preceding bytes after STX
-        crc_msb = data[offset + 4 + length + 1] # Most-significant byte of CRC-16 over preceding bytes after STX
-        etx = data[offset + 6 + data_length + 2]     # ETX-byte to signify end of message, should be 0x03
-        
-        rvals = {'offset': offset, 'data_offset': data_offset, 'inv_id': inv_id, 'length': length, \
-                 'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
-        
-        if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
+            offset = data.find(b'\x02\x06', offset)    # Responses start with 2 bytes, STX (0x02) and ACK (0x06)
             
-            if verbose:
-                print("ETX at", offset + 6 + data_length + 2, "is", etx, "but should be 3, skipping match at", offset)
-                print(rvals)
+            if offset < 0:
+                return None
+            elif verbose:
+                print("Found possible response at offset", offset, "(started at", start_offset, ")")
+            
+            inv_id = data[offset + 2]               # Inverter ID on the RS485-bus 2
+            length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX) 157
+            cmd = data[offset + 4]                  # Command ID 96
+            subcmd = data[offset + 5]               # Subcommand ID 1
+            data_offset = offset + 6                # Start of data 17 (11 + 6)
+            data_length = length - 2                # Length of data 155
+            crc_lsb = data[offset + 4 + length]     # Least-significant byte of CRC-16 over preceding bytes after STX
+            crc_msb = data[offset + 4 + length + 1] # Most-significant byte of CRC-16 over preceding bytes after STX
+            etx = data[offset + 6 + data_length + 2]     # ETX-byte to signify end of message, should be 0x03
+            
+            rvals = {'offset': offset, 'data_offset': data_offset, 'inv_id': inv_id, 'length': length, \
+                     'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
+            
+            if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
                 
-            offset = offset + 1                 # Look for next response
+                if verbose:
+                    print("ETX at", offset + 6 + data_length + 2, "is", etx, "but should be 3, skipping match at", offset)
+                    print(rvals)
+                    
+                offset = offset + 1                 # Look for next response
+                
+            else:                                   # ETX is 0x03, we probably have a valid data block
+                
+                # TODO: check CRC
+                
+                #crcval = crc.CRC16.calcString(data[offset + 1 : offset + 4 + length])
+                #if crc_lsb != (crcval & 0xff):
+                #    print("WARNING: CRC LSB should be", crc_lsb, "but seems to be", crcval & 0x0ff)
+                #if crc_msb != (crcval >> 8):
+                #    print("WARNING: CRC MSB should be", crc_msb, "but seems to be", crcval >> 8)
+                
+                print("Found valid response:", rvals);
+                
+                return rvals;
+                
+        except:
             
-        else:                                   # ETX is 0x03, we probably have a valid data block
-            
-            # TODO: check CRC
-            
-            #crcval = crc.CRC16.calcString(data[offset + 1 : offset + 4 + length])
-            #if crc_lsb != (crcval & 0xff):
-            #    print("WARNING: CRC LSB should be", crc_lsb, "but seems to be", crcval & 0x0ff)
-            #if crc_msb != (crcval >> 8):
-            #    print("WARNING: CRC MSB should be", crc_msb, "but seems to be", crcval >> 8)
-            
-            print("Found valid response:", rvals);
-            
-            return rvals;
+            print("Error decoding response:", sys.exc_info()[0])
             
     return None
 
