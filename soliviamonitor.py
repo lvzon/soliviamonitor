@@ -395,11 +395,15 @@ while True:     # Main loop
                     
                     # It's time to store a sample
                     
+                    if verbose:
+                        print("Storing sample")
                     samples[inv_idx].append([time.isoformat()] + subset)            # Store sample in list
                     csvwriter_raw[inv_idx].writerow([time.isoformat()] + list(u))   # Write all samples directly to temporary file (on RAM-disk)
                     lastsampletime[inv_idx] = datetime.datetime.now()               # Update last sample time
 
                 if lastlogtime == 0 or round(t_log.seconds) >= loginterval:
+                    if verbose:
+                        print("Update time of last data write")
                     if (lastlogtime):
                         write_samples(True)
                     lastlogtime = datetime.datetime.now()   # Update last log time
