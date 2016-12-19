@@ -246,12 +246,18 @@ def find_response (data, start_offset):
             elif verbose:
                 print("Found possible response at offset", offset, "(started at", start_offset, ")")
             
-            inv_id = data[offset + 2]               # Inverter ID on the RS485-bus 2
-            length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX) 157
-            cmd = data[offset + 4]                  # Command ID 96
-            subcmd = data[offset + 5]               # Subcommand ID 1
-            data_offset = offset + 6                # Start of data 17 (11 + 6)
-            data_length = length - 2                # Length of data 155
+            inv_id = data[offset + 2]               # Inverter ID on the RS485-bus
+            length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX)
+            
+            if length > (len(data) - offset - 3):
+                if verbose:
+                    print("Incomplete data block")
+                return None
+                         
+            cmd = data[offset + 4]                  # Command ID
+            subcmd = data[offset + 5]               # Subcommand ID
+            data_offset = offset + 6                # Start of data
+            data_length = length - 2                # Length of data
             crc_lsb = data[offset + 4 + length]     # Least-significant byte of CRC-16 over preceding bytes after STX
             crc_msb = data[offset + 4 + length + 1] # Most-significant byte of CRC-16 over preceding bytes after STX
             etx = data[offset + 6 + data_length + 2]     # ETX-byte to signify end of message, should be 0x03
