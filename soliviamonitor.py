@@ -177,8 +177,13 @@ def write_samples(use_report):
         # Update total energy counters
     
         if total_energy_Wh[inv] and total_energy_Wh[inv] != total_energy_Wh_prev[inv]:
+            
             if reporting and use_report:
-                report.send_total(inv, total_energy_Wh[inv])
+                try:
+                    report.send_total(inv, total_energy_Wh[inv])
+                except:
+                    print("Error while calling report.send_total:", sys.exc_info()[0])
+                    
             total_energy_Wh_prev[inv] = total_energy_Wh[inv]
         
     lastlogtime = datetime.datetime.now()   # Update last log time
