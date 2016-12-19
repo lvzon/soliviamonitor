@@ -29,12 +29,19 @@
 
 import struct
 import serial
-import datetime, time
+import datetime
 import csv
 import os.path
 import sys
+import signal
+
 import crc
 
+reporting = True
+try:
+    import report
+except ImportError:
+    reporting = False
 
 verbose = 1                 # Verbosity flag
 inverters = 2               # Number of inverters (TODO: actually use this variable)
@@ -145,6 +152,53 @@ for inv in range(0, inverters):
     lastsampletime.append(datetime.datetime.now())
 
 
+def write_samples():
+    
+    ''' Write samples to CSV-files '''
+    
+    global lastlogtime
+    
+    for inv in range(0, inverters):
+        
+        # Write our data
+        
+        try:
+        
+            for sample in samples[inv]:
+                csvwriter_subset[inv].writerow(sample)
+                
+            samples[inv] = list()   # Clear sample-lists
+        
+        except:
+            
+            error = sys.exc_info()[0]
+            print(time(), "Error writing samples to file:", error)
+            
+        # Update total energy counters
+    
+        if total_energy_Wh[inv] and total_energy_Wh[inv] != total_energy_Wh_prev[inv]:
+            if reporting:
+                report.send_total(inv, total_energy_Wh[inv])
+            total_energy_Wh_prev[inv] = total_energy_Wh[inv]
+        
+    lastlogtime = datetime.datetime.now()   # Update last log time
+
+
+# Catch SIGINT/SIGTERM/SIGKILL and exit gracefully
+
+def signal_handler(signal, frame):
+    
+    ''' Signal handler to write data when a lethal signal is received '''
+    
+    print(time(), "Received signal:", signal)
+    write_samples()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGKILL, signal_handler)
+
+
 def send_request (inv_id, cmd):
     
     """ Send command (e.g. '\x60\x01') to the inverter with id inv_id """
@@ -152,9 +206,9 @@ def send_request (inv_id, cmd):
     # Borrowed from DeltaPVOutput, TODO: Make the code more readable, and test it!
     
     l = len(cmd)
-    crc = crc.CRC16.calcString(struct.pack('BBB%ds'%l, 5, inv_id, l, cmd))
-    lo = crc & (0xff)
-    high = (crc >> 8) & 0xff
+    crcval = crc.CRC16.calcString(struct.pack('BBB%ds'%l, 5, inv_id, l, cmd))
+    lo = crcval & (0xff)
+    high = (crcval >> 8) & 0xff
     data = struct.pack('BBBB%dsBBB' %len(cmd), 2, 5, inv_id, len(cmd), cmd, lo, high, 3)
     
     if verbose:
@@ -207,6 +261,12 @@ def find_response (data, start_offset):
             
             # TODO: check CRC
             
+            crcval = crc.CRC16.calcString(data[offset + 1 : offset + 4 + length])
+            if crc_lsb != (crcval & 0xff):
+                print("WARNING: CRC LSB should be", crc_lsb, "but seems to be", crcval & 0x0ff)
+            if crc_msb != (crcval >> 8):
+                print("WARNING: CRC MSB should be", crc_msb, "but seems to be", crcval >> 8)
+            
             print("Found valid response:", rvals);
             
             return rvals;
@@ -215,7 +275,7 @@ def find_response (data, start_offset):
 
             
 
-while True:     # Main loop (TODO: allow a clean exit of the program, without data loss)
+while True:     # Main loop
 
     connection.timeout = 1.0    # Timeout for serial data read, in seconds
     if data:
@@ -286,6 +346,8 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
                     csvwriter_subset[inv_idx] = csvw
                     if write_header:
                         csvw.writerow(["time"] + varheader[12:])    # Write header line
+                    if reporting:
+                        report.init(inv_idx, serial)
                              
                 subset = list(u[12:])           # Get a subset of the data, without serial and version numbers
                 subset[25] = hex(subset[25])    # Variable with unknown meaning, store as hex value
@@ -322,23 +384,8 @@ while True:     # Main loop (TODO: allow a clean exit of the program, without da
                     lastsampletime[inv_idx] = datetime.datetime.now()               # Update last sample time
 
                 if lastlogtime == 0 or round(t_log.seconds) >= loginterval:
+                    write_samples()
                     
-                    for inv in range(0, inverters):
-                        
-                        # Write our data
-                        
-                        for sample in samples[inv]:
-                            csvwriter_subset[inv].writerow(sample)
-                            
-                        samples[inv] = list()   # Clear sample-lists
-                        
-                        # Update total energy counters
-                    
-                        if total_energy_Wh[inv] and total_energy_Wh[inv] != total_energy_Wh_prev[inv]:
-                            total_energy_Wh_prev[inv] = total_energy_Wh[inv]
-                        
-                    lastlogtime = datetime.datetime.now()   # Update last log time
-                                      
                 idx += offset + 1   # Advance index into the data we read from serial
                 
             else:
