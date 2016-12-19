@@ -158,6 +158,8 @@ def write_samples(use_report):
     
     ''' Write samples to CSV-files '''
     
+    global lastlogtime
+    
     for inv in range(0, inverters):
         
         # Write our data
@@ -188,6 +190,7 @@ def write_samples(use_report):
                     
             total_energy_Wh_prev[inv] = total_energy_Wh[inv]
         
+    lastlogtime = datetime.datetime.now()   # Update last log time
 
 
 # Catch SIGINT/SIGTERM/SIGKILL and exit gracefully
@@ -281,6 +284,7 @@ def find_response (data, start_offset):
         except:
             
             print("Error decoding response:", sys.exc_info()[0])
+            offset = offset + 1                 # Look for next response
             
     return None
 
