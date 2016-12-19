@@ -158,8 +158,6 @@ def write_samples(use_report):
     
     ''' Write samples to CSV-files '''
     
-    global lastlogtime
-    
     for inv in range(0, inverters):
         
         # Write our data
@@ -190,7 +188,6 @@ def write_samples(use_report):
                     
             total_energy_Wh_prev[inv] = total_energy_Wh[inv]
         
-    lastlogtime = datetime.datetime.now()   # Update last log time
 
 
 # Catch SIGINT/SIGTERM/SIGKILL and exit gracefully
@@ -397,7 +394,9 @@ while True:     # Main loop
                     lastsampletime[inv_idx] = datetime.datetime.now()               # Update last sample time
 
                 if lastlogtime == 0 or round(t_log.seconds) >= loginterval:
-                    write_samples(True)
+                    if (lastlogtime):
+                        write_samples(True)
+                    lastlogtime = datetime.datetime.now()   # Update last log time
                     
                 idx += offset + 1   # Advance index into the data we read from serial
                 
