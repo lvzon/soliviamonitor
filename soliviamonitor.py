@@ -335,6 +335,14 @@ while True:     # Main loop
                 except:
                     error = sys.exc_info()[0]
                     print(time(), error, "while decoding inverter data block")
+
+
+                # Update total energy count for this inverter
+                
+                total_energy_Wh[inv_idx] = u[varlookup["energytotal"]] * 1000
+                if verbose:
+                    print("Inverter", serial, "reports", total_energy_Wh[inv_idx], "Wh total energy")
+                
                                         
                 csvw = csvwriter_subset[inv_idx]    # Get output file object
                 
@@ -352,6 +360,7 @@ while True:     # Main loop
                         csvw.writerow(["time"] + varheader[12:])    # Write header line
                     if reporting:
                         report.init(inv_idx, serial)
+                        report.send_total(inv_idx, total_energy_Wh[inv_idx])
                              
                 subset = list(u[12:])           # Get a subset of the data, without serial and version numbers
                 subset[25] = hex(subset[25])    # Variable with unknown meaning, store as hex value
@@ -359,12 +368,6 @@ while True:     # Main loop
 
                 if verbose:
                     print("Subset:", subset)
-                
-                # Update total energy count for this inverter
-                
-                total_energy_Wh[inv_idx] = u[varlookup["energytotal"]] * 1000
-                if verbose:
-                    print("Inverter", serial, "reports", total_energy_Wh[inv_idx], "Wh total energy")
                 
                 # Determine if it's time to store a new sample and/or write our data
                 
