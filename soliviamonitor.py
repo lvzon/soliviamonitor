@@ -40,8 +40,10 @@ import crc
 reporting = True
 try:
     import report
+    print("Will report energy totals to an external server")
 except ImportError:
     reporting = False
+    print("Will NOT report energy totals to an external server")
 
 verbose = 1                 # Verbosity flag
 inverters = 2               # Number of inverters (TODO: actually use this variable)
