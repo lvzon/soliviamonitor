@@ -177,7 +177,7 @@ def write_samples(use_report):
         # Update total energy counters
     
         if total_energy_Wh[inv] and total_energy_Wh[inv] != total_energy_Wh_prev[inv]:
-            if reporting:
+            if reporting and use_report:
                 report.send_total(inv, total_energy_Wh[inv])
             total_energy_Wh_prev[inv] = total_energy_Wh[inv]
         
