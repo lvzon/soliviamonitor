@@ -46,6 +46,7 @@ except ImportError:
     print("Will NOT report energy totals to an external server")
 
 verbose = 1                 # Verbosity flag
+debugging = 1               # Debugging flag
 inverters = 2               # Number of inverters (TODO: actually use this variable)
 basepath = "/root/delta/"   # Path where CSV output files should be saved 
 
@@ -53,8 +54,8 @@ connection = serial.Serial('/dev/ttyUSB0',19200,timeout=0.2);   # Serial device
 
 # Variables in the data-block of a Delta RPI M-series inverter,
 # as far as I've been able to establish their meaning.
-# Format is: 
-# name, struct-definition, bytes, multiplier-exponent (10^x), unit, SunSpec equivalent
+# The fields for each variable are as follows: 
+# name, struct-definition, size in bytes, multiplier-exponent (10^x), unit, SunSpec equivalent
 
 rvars = (("partno", "11s", 11),
         ("serial", "18s", 18),
@@ -102,14 +103,14 @@ rvars = (("partno", "11s", 11),
         ("temp", "H", 2, 0, "C", "TmpSnk"))
 
 
-structstr = ">"     # Struct description string for the data block
+structstr = ">"     # Initial struct description string for the data block
 structlen = 0       # Length of our struct data
 varheader = []      # Variable names for the CSV header
 
 idx = 0
 varlookup = {}      # Dict for finding the index of a given variable
 
-# Construct a struct description for our data block, 
+# Construct a full struct description for our data block, 
 # and a header line for our CSV.
 
 for var in rvars:
@@ -119,8 +120,8 @@ for var in rvars:
     varlookup[var[0]] = idx
     idx += 1
 
-#if verbose:
-#    print (varheader)
+if debugging:
+    print(varheader)
 
 
 # Housekeeping variables for sampling and buffering of data
@@ -156,13 +157,19 @@ for inv in range(0, inverters):
 
 def write_samples(use_report):
     
-    ''' Write samples to CSV-files '''
+    ''' 
+    Write stored samples to CSV-files and optionally report 
+    energy totals to an external server 
+    '''
     
     global lastlogtime
     
     for inv in range(0, inverters):
         
-        # Write our data
+        # Write our samples to the CSV-file for this inverter
+        
+        if verbose:
+            print("Writing samples to CSV for inverter with index", inv)
         
         try:
         
@@ -203,6 +210,8 @@ def signal_handler(signal, frame):
     write_samples(False)
     sys.exit(0)
 
+# Register signal handlers
+
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
@@ -219,7 +228,7 @@ def send_request (inv_id, cmd):
     high = (crcval >> 8) & 0xff
     data = struct.pack('BBBB%dsBBB' %len(cmd), 2, 5, inv_id, len(cmd), cmd, lo, high, 3)
     
-    if verbose:
+    if debugging:
         print("Sending data query to inverter", inv_id)
         
     connection.write(data)
@@ -228,7 +237,10 @@ def send_request (inv_id, cmd):
 
 def find_response (data, start_offset):
 
-    """ Look for valid replies in serial data, returns a hash with offset, length, inverter_id, command, subcommand """
+    """ 
+    Look for valid inverter-replies in serial data, 
+    returns a hash with offset, length, inverter_id, command, subcommand 
+    """
     
     if start_offset < 0:
         return None
@@ -239,18 +251,23 @@ def find_response (data, start_offset):
         
         try:
         
+            if debugging:
+                print("Searching for replies in serial data at offset", offset)
+        
             offset = data.find(b'\x02\x06', offset)    # Responses start with 2 bytes, STX (0x02) and ACK (0x06)
             
             if offset < 0:
+                if debugging:
+                    print("No reply data found")
                 return None
-            elif verbose:
+            elif debugging:
                 print("Found possible response at offset", offset, "(started at", start_offset, ")")
             
             inv_id = data[offset + 2]               # Inverter ID on the RS485-bus
             length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX)
             
             if length > (len(data) - offset - 3):
-                if verbose:
+                if debugging:
                     print("Incomplete data block")
                 return None
                          
@@ -283,7 +300,8 @@ def find_response (data, start_offset):
                 #if crc_msb != (crcval >> 8):
                 #    print("WARNING: CRC MSB should be", crc_msb, "but seems to be", crcval >> 8)
                 
-                print("Found valid response:", rvals);
+                if debugging:
+                    print("Found valid response:", rvals);
                 
                 return rvals;
                 
@@ -328,13 +346,13 @@ while True:     # Main loop
             data_offset = rvals['data_offset']
             data_length = rvals['data_length']
                           
-            if verbose:
+            if debugging:
                 print ("Found reply block for inverter ID", inv_id, "command", cmd, "subcommand", subcmd, "data length", data_length)
                 
             start = data_offset                         # Start of the actual data
 
             b = bytes(data[start:start + structlen])    # Get a block of bytes corresponding to the struct 
-            if verbose:
+            if debugging:
                 print (time.isoformat(), "Data length:", len(b))
                 
             # Look for a reply to command 0x60 subcommand 0x01
@@ -343,11 +361,14 @@ while True:     # Main loop
                 
                 # We have a data block, unpack it and do something with the data
                 
+                if debugging:
+                    print("Unpacking data block")
+                
                 try:
                     u = struct.unpack(structstr, b)     # Unpack the struct into a list of variables
                     serial = str(u[1], "ascii")         # Get the inverter serial number
-                    #if verbose:
-                    #    print(u)                    
+                    if debugging:
+                        print(u)                    
                     
                 except:
                     error = sys.exc_info()[0]
