@@ -181,7 +181,7 @@ def write_samples(use_report):
         except:
             
             error = sys.exc_info()[0]
-            print(time(), "Error writing samples to file:", error)
+            print(time(), "Error writing samples to file:", str(error))
             
         # Update total energy counters
     
@@ -193,7 +193,7 @@ def write_samples(use_report):
                         print("Reporting energy total to server, inverter index", inv)
                     report.send_total(inv, total_energy_Wh[inv])
                 except:
-                    print("Error while calling report.send_total:", sys.exc_info()[0])
+                    print("Error while calling report.send_total:", str(sys.exc_info()[0]))
                     
             total_energy_Wh_prev[inv] = total_energy_Wh[inv]
         
@@ -307,7 +307,7 @@ def find_response (data, start_offset):
                 
         except:
             
-            print("Error decoding response:", sys.exc_info()[0])
+            print("Error decoding response:", str(sys.exc_info()[0]))
             offset = offset + 1                 # Look for next response
             
     return None
@@ -372,7 +372,7 @@ while True:     # Main loop
                     
                 except:
                     error = sys.exc_info()[0]
-                    print(time(), error, "while decoding inverter data block")
+                    print(time(), str(error), "while decoding inverter data block")
 
 
                 # Update total energy count for this inverter
