@@ -46,7 +46,7 @@ except ImportError:
     print("Will NOT report energy totals to an external server")
 
 verbose = 1                 # Verbosity flag
-debugging = 1               # Debugging flag
+debugging = 0               # Debugging flag
 inverters = 2               # Number of inverters (TODO: actually use this variable)
 basepath = "/root/delta/"   # Path where CSV output files should be saved 
 
