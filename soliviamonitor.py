@@ -329,7 +329,7 @@ while True:     # Main loop
     if data:
         last_data = time                # Update time of last data read
 
-    while offset >= 0:                  # Look for inverter data blocks in our serial data
+    while data and offset >= 0:                  # Look for inverter data blocks in our serial data
         
         rvals = find_response(data, idx)   # Look for a response
         
@@ -450,7 +450,13 @@ while True:     # Main loop
                 
                 break
 
-               
+        else:
+            
+            # No replies found in serial data, exit the loop
+            
+            break
+    
+            
     # Check if we should request data from the inverters
                 
     t_data = time - last_data
