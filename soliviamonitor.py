@@ -378,7 +378,7 @@ while True:     # Main loop
                 # Update total energy count for this inverter
                 
                 total_energy_Wh[inv_idx] = u[varlookup["energytotal"]] * 1000
-                if verbose:
+                if debugging:
                     print("Inverter", serial, "reports", total_energy_Wh[inv_idx], "Wh total energy")
                 
                                         
@@ -406,7 +406,7 @@ while True:     # Main loop
                 subset[25] = hex(subset[25])    # Variable with unknown meaning, store as hex value
                 subset[26] = hex(subset[26])    # Variable with unknown meaning, store as hex value
 
-                if verbose:
+                if debugging:
                     print("Subset:", subset)
                 
                 # Determine if it's time to store a new sample and/or write our data
@@ -416,7 +416,7 @@ while True:     # Main loop
                 if lastlogtime and lastlogtime < time:
                     t_log = time - lastlogtime              # Time since last data written
                     
-                if verbose:
+                if debugging:
                     print("Seconds since last sample:", t_sample.seconds)
                     print("Next sample due in:", sampleinterval - t_sample.seconds)
                     print("Seconds since last write:", t_log.seconds)
@@ -428,6 +428,9 @@ while True:     # Main loop
                     
                     if verbose:
                         print("Storing sample")
+                        print("Seconds since last sample:", t_sample.seconds)
+                        print("Next write due in:", loginterval - t_log.seconds)
+                        
                     samples[inv_idx].append([time.isoformat()] + subset)            # Store sample in list
                     csvwriter_raw[inv_idx].writerow([time.isoformat()] + list(u))   # Write all samples directly to temporary file (on RAM-disk)
                     lastsampletime[inv_idx] = datetime.datetime.now()               # Update last sample time
