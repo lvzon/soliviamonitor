@@ -35,7 +35,7 @@ import os.path
 import sys
 import signal
 
-import crc
+import crc16
 import binascii
 
 reporting = True
@@ -224,7 +224,7 @@ def send_request (inv_id, cmd):
     # Borrowed from DeltaPVOutput, TODO: Make the code more readable, and test it!
     
     l = len(cmd)
-    crcval = crc.CRC16.calcString(struct.pack('BBB%ds'%l, 5, inv_id, l, cmd))
+    crcval = crc16.calcData(struct.pack('BBB%ds'%l, 5, inv_id, l, cmd))
     lo = crcval & (0xff)
     high = (crcval >> 8) & 0xff
     data = struct.pack('BBBB%dsBBB' %len(cmd), 2, 5, inv_id, len(cmd), cmd, lo, high, 3)
@@ -295,8 +295,8 @@ def find_response (data, start_offset):
                 
                 # TODO: check CRC
                 
-                #crcval = crc.CRC16.calcString(data[offset + 1 : offset + 4 + length])
-                crcval = binascii.crc_hqx(data[offset + 1 : offset + 4 + length], 0)
+                crcval = crc16.calcData(data[offset + 1 : offset + 4 + length])
+                #crcval = binascii.crc_hqx(data[offset + 1 : offset + 4 + length], 0)
                 if crc_lsb != (crcval & 0xff):
                     print("WARNING: CRC LSB should be", crc_lsb, "but seems to be", crcval & 0x0ff)
                 if crc_msb != (crcval >> 8):
