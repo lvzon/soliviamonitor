@@ -442,8 +442,6 @@ while True:     # Main loop
                         write_samples(True)
                     lastlogtime = datetime.datetime.now()   # Update last log time
                     
-                idx += offset + 1   # Advance index into the data we read from serial
-                
             else:
                 
                 # Data did not match our struct
@@ -452,6 +450,8 @@ while True:     # Main loop
                     print ("Data did not match struct.")
                 
                 break
+                
+            idx += offset + 1   # Advance index into the data we read from serial
 
         else:
             
