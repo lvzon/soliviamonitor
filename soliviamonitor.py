@@ -5,7 +5,7 @@
 # A python-script for monitoring the status of Delta Solivia RPI PV-inverters
 # Tested with Delta Solivia RPI M15A and M20A (European three-phase models)
 
-# Copyright (c) 2016 Levien van Zon (levien at zonnetjes.net)
+# Copyright (c) 2016, 2017 Levien van Zon (levien at zonnetjes.net)
 
 # MIT License
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -36,7 +36,6 @@ import sys
 import signal
 
 import crc16
-import binascii
 
 reporting = True
 try:
@@ -293,24 +292,25 @@ def find_response (data, start_offset):
                 
             else:                                   # ETX is 0x03, we probably have a valid data block
                 
-                # TODO: check CRC
+                crc_calc = crc16.calcData(data[offset + 1 : offset + 4 + length])
+                crc_msg = crc_msb << 8 | crc_lsb
                 
-                crcval = crc16.calcData(data[offset + 1 : offset + 4 + length])
-                #crcval = binascii.crc_hqx(data[offset + 1 : offset + 4 + length], 0)
-                if crc_lsb != (crcval & 0xff):
-                    print("WARNING: CRC LSB should be", crc_lsb, "but seems to be", crcval & 0x0ff)
-                if crc_msb != (crcval >> 8):
-                    print("WARNING: CRC MSB should be", crc_msb, "but seems to be", crcval >> 8)
+                if crc_calc != crc_msg:
+                    
+                    print("WARNING: Skipping reply, CRC-16 is", hex(crc_calc), " but should be", hex(crc_msg))
+                    offset = offset + 1             # Look for next response
+                    
+                else:
                 
-                if debugging:
-                    print("Found valid response:", rvals);
-                
-                return rvals;
+                    if debugging:
+                        print("Found valid response:", rvals);
+                    
+                    return rvals;
                 
         except:
             
             print("Error decoding response:", str(sys.exc_info()[0]))
-            offset = offset + 1                 # Look for next response
+            offset = offset + 1                     # Look for next response
             
     return None
 
