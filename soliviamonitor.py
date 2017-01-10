@@ -218,15 +218,16 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 def send_request (inv_id, cmd):
     
-    """ Send command (e.g. '\x60\x01') to the inverter with id inv_id """
+    """ Send command (e.g. b'\x60\x01') to the inverter with id inv_id """
     
-    # Borrowed from DeltaPVOutput, TODO: Make the code more readable, and test it!
+    # Borrowed from DeltaPVOutput
     
-    l = len(cmd)
-    crcval = crc16.calcData(struct.pack('BBB%ds'%l, 5, inv_id, l, cmd))
-    lo = crcval & (0xff)
-    high = (crcval >> 8) & 0xff
-    data = struct.pack('BBBB%dsBBB' %len(cmd), 2, 5, inv_id, len(cmd), cmd, lo, high, 3)
+    length = len(cmd)
+    msgbody = struct.pack('BBB%ds'%length, 5, inv_id, length, cmd)
+    crcval = crc16.calcData(msgbody)
+    lsb = crcval & (0xff)
+    msb = (crcval >> 8) & 0xff
+    data = struct.pack('BBBB%dsBBB'%length, 2, 5, inv_id, length, cmd, lsb, msb, 3)
     
     if debugging:
         print("Sending data query to inverter", inv_id)
@@ -470,6 +471,6 @@ while True:     # Main loop
         # If we haven't seen any data or reply in a while, send a request
         t_sample = time - lastsampletime[inv]
         if (t_data.seconds >= 1 and t_sample.seconds >= sampleinterval):          
-            send_request(inv + 1, '\x60\x01')   # Send request for a data block (command 96 subcommand 1)
+            send_request(inv + 1, b'\x60\x01')   # Send request for a data block (command 96 subcommand 1)
             # TODO: Check if inverters wait until the bus is free before sending data... 
             
