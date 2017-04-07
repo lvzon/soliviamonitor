@@ -236,231 +236,216 @@ def send_request (inv_id, cmd):
     connection.flush()
 
 
-def find_response (data, start_offset):
+def decode_response (data, inv_id, length):
 
     """ 
-    Look for valid inverter-replies in serial data, 
+    Try to decode an inverter-reply from serial data, 
     returns a hash with offset, length, inverter_id, command, subcommand 
     """
     
-    if start_offset < 0:
-        return None
+    try:
     
-    offset = start_offset
-    
-    while offset < len(data) and offset >= start_offset:
-        
-        try:
-        
+        if (len(data)) < length + 3:
             if debugging:
-                print("Searching for replies in serial data at offset", offset)
+                print("Incomplete data block")
+            return None
+                     
+        cmd = data[0]                   # Command ID
+        subcmd = data[1]                # Subcommand ID
+        data_offset = 2                 # Start of data
+        data_length = length - 2        # Length of data
+        crc_lsb = data[length]          # Least-significant byte of CRC-16 over preceding bytes after STX
+        crc_msb = data[length + 1]      # Most-significant byte of CRC-16 over preceding bytes after STX
+        etx = data[length + 3]          # ETX-byte to signify end of message, should be 0x03
         
-            offset = data.find(b'\x02\x06', offset)    # Responses start with 2 bytes, STX (0x02) and ACK (0x06)
+        rvals = {'offset': offset, 'data_offset': data_offset, 'inv_id': inv_id, 'length': length, \
+                 'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
+        
+        if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
             
-            if offset < 0:
-                if debugging:
-                    print("No reply data found")
+            if verbose:
+                print("ETX at", offset + 6 + data_length + 2, "is", etx, "but should be 3")
+                print(rvals)
+            
+            return None
+            
+        else:                                   # ETX is 0x03, we probably have a valid data block
+            
+            crc_calc = crc16.calcData(data[offset + 1 : offset + 4 + length])
+            crc_msg = crc_msb << 8 | crc_lsb
+            
+            if crc_calc != crc_msg:
+                
+                print("WARNING: CRC-16 is", hex(crc_calc), " but should be", hex(crc_msg))
                 return None
-            elif debugging:
-                print("Found possible response at offset", offset, "(started at", start_offset, ")")
+                
+            else:
             
-            inv_id = data[offset + 2]               # Inverter ID on the RS485-bus
-            length = data[offset + 3]               # Response length (including CMD, excluding CRC and ETX)
-            
-            if length > (len(data) - offset - 3):
                 if debugging:
-                    print("Incomplete data block")
-                return None
-                         
-            cmd = data[offset + 4]                  # Command ID
-            subcmd = data[offset + 5]               # Subcommand ID
-            data_offset = offset + 6                # Start of data
-            data_length = length - 2                # Length of data
-            crc_lsb = data[offset + 4 + length]     # Least-significant byte of CRC-16 over preceding bytes after STX
-            crc_msb = data[offset + 4 + length + 1] # Most-significant byte of CRC-16 over preceding bytes after STX
-            etx = data[offset + 6 + data_length + 2]     # ETX-byte to signify end of message, should be 0x03
+                    print("Found valid response:", rvals);
+                
+                return rvals;
             
-            rvals = {'offset': offset, 'data_offset': data_offset, 'inv_id': inv_id, 'length': length, \
-                     'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
-            
-            if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
-                
-                if verbose:
-                    print("ETX at", offset + 6 + data_length + 2, "is", etx, "but should be 3, skipping match at", offset)
-                    print(rvals)
-                    
-                offset = offset + 1                 # Look for next response
-                
-            else:                                   # ETX is 0x03, we probably have a valid data block
-                
-                crc_calc = crc16.calcData(data[offset + 1 : offset + 4 + length])
-                crc_msg = crc_msb << 8 | crc_lsb
-                
-                if crc_calc != crc_msg:
-                    
-                    print("WARNING: Skipping reply, CRC-16 is", hex(crc_calc), " but should be", hex(crc_msg))
-                    offset = offset + 1             # Look for next response
-                    
-                else:
-                
-                    if debugging:
-                        print("Found valid response:", rvals);
-                    
-                    return rvals;
-                
-        except:
-            
-            print("Error decoding response:", str(sys.exc_info()[0]))
-            offset = offset + 1                     # Look for next response
-            
-    return None
+    except:
+        
+        print("Error decoding response:", str(sys.exc_info()[0]))
+        return None
+        
 
             
 
 while True:     # Main loop
 
     connection.timeout = 1.0    # Timeout for serial data read, in seconds
+    
+    while True:
+        data = connection.read(1)   # Read one byte
+        if data[0] == b'\x02':      # Look for STX
+            data = connection.read(1)   # STX found, read another byte
+            if data[0] == b'\x06':      # Look for 0x06
+                break                   # 0x06 found, contine trying to read a full message
+    
+    data = connection.read(2)
     if data:
-        data = data[idx:] + connection.read(1000)   # Try to read more data
+        inv_id = data[0]               # Inverter ID on the RS485-bus
+        length = data[1]               # Response length (including CMD, excluding CRC and ETX)
     else:
-        data = connection.read(1000)    # Try to read data
+        continue                       # On timeout, restart main loop
+    
+    data = connection.read(length + 3)  # Read 'length' bytes + 2 bytes CRC + 1 byte ETX
+    
+    rvals = decode_response(data, inv_id, length)
         
     time = datetime.datetime.now()      # Current time
-    idx = 0
-    offset = 0
 
-    if data:
+    if data and rvals:
         last_data = time                # Update time of last data read
+    
+    if rvals:
+        
+        offset = rvals['offset']
+    
+        inv_id = rvals['inv_id']       # Inverter ID on the RS485-bus
+        inv_idx = inv_id - 1
+        
+        cmd = rvals['cmd']
+        subcmd = rvals['subcmd']
+        
+        data_offset = rvals['data_offset']
+        data_length = rvals['data_length']
+                      
+        if debugging:
+            print ("Found reply block for inverter ID", inv_id, "command", cmd, "subcommand", subcmd, "data length", data_length)
+            
+        start = data_offset                         # Start of the actual data
 
-    while data and offset >= 0:                  # Look for inverter data blocks in our serial data
-        
-        rvals = find_response(data, idx)   # Look for a response
-        
-        if rvals:
+        b = bytes(data[start:start + structlen])    # Get a block of bytes corresponding to the struct 
+        if debugging:
+            print (time.isoformat(), "Data length:", len(b))
             
-            offset = rvals['offset']
+        # Look for a reply to command 0x60 subcommand 0x01
         
-            inv_id = rvals['inv_id']       # Inverter ID on the RS485-bus
-            inv_idx = inv_id - 1
+        if len(b) == structlen and cmd == 0x60 and subcmd == 0x01:
             
-            cmd = rvals['cmd']
-            subcmd = rvals['subcmd']
+            # We have a data block, unpack it and do something with the data
             
-            data_offset = rvals['data_offset']
-            data_length = rvals['data_length']
-                          
             if debugging:
-                print ("Found reply block for inverter ID", inv_id, "command", cmd, "subcommand", subcmd, "data length", data_length)
-                
-            start = data_offset                         # Start of the actual data
-
-            b = bytes(data[start:start + structlen])    # Get a block of bytes corresponding to the struct 
-            if debugging:
-                print (time.isoformat(), "Data length:", len(b))
-                
-            # Look for a reply to command 0x60 subcommand 0x01
+                print("Unpacking data block")
             
-            if len(b) == structlen and cmd == 0x60 and subcmd == 0x01:
-                
-                # We have a data block, unpack it and do something with the data
-                
+            try:
+                u = struct.unpack(structstr, b)     # Unpack the struct into a list of variables
+                serial = str(u[1], "ascii")         # Get the inverter serial number
                 if debugging:
-                    print("Unpacking data block")
+                    print(u)                    
                 
-                try:
-                    u = struct.unpack(structstr, b)     # Unpack the struct into a list of variables
-                    serial = str(u[1], "ascii")         # Get the inverter serial number
-                    if debugging:
-                        print(u)                    
-                    
-                except:
-                    error = sys.exc_info()[0]
-                    print(time(), str(error), "while decoding inverter data block")
+            except:
+                error = sys.exc_info()[0]
+                print(time(), str(error), "while decoding inverter data block")
 
 
-                # Update total energy count for this inverter
-                
-                total_energy_Wh[inv_idx] = u[varlookup["energytotal"]] * 1000
-                if debugging:
-                    print("Inverter", serial, "reports", total_energy_Wh[inv_idx], "Wh total energy")
-                
-                                        
-                csvw = csvwriter_subset[inv_idx]    # Get output file object
-                
-                if not csvw:                        
-                    # Open a CSV-file for this serial, if not already done
-                    fname = basepath + str(inv_id) + "-" + serial + ".csv"
-                    print("Will write to" + fname)
-                    write_header = True
-                    if os.path.isfile(fname):
-                        write_header = False        # Don't write header if file exists
-                    ofile = open(fname, "a")        # Append data
-                    csvw = csv.writer(ofile, delimiter='\t')
-                    csvwriter_subset[inv_idx] = csvw
-                    if write_header:
-                        csvw.writerow(["time"] + varheader[12:])    # Write header line
-                    if reporting:
-                        if verbose:
-                            print("Initial report of energy total to server, inverter index", inv_idx)
-                        report.init(inv_idx, serial)
-                        report.send_total(inv_idx, total_energy_Wh[inv_idx])
-                             
-                subset = list(u[12:])           # Get a subset of the data, without serial and version numbers
-                subset[25] = hex(subset[25])    # Variable with unknown meaning, store as hex value
-                subset[26] = hex(subset[26])    # Variable with unknown meaning, store as hex value
-
-                if debugging:
-                    print("Subset:", subset)
-                
-                # Determine if it's time to store a new sample and/or write our data
-                
-                t_sample = time - lastsampletime[inv_idx]   # Time since last sample stored
-                t_log = time - time                         # (Set t_log to zero)
-                if lastlogtime and lastlogtime < time:
-                    t_log = time - lastlogtime              # Time since last data written
-                    
-                if debugging:
-                    print("Seconds since last sample:", t_sample.seconds)
-                    print("Next sample due in:", sampleinterval - t_sample.seconds)
-                    print("Seconds since last write:", t_log.seconds)
-                    print("Next write due in:", loginterval - t_log.seconds)
-                    
-                if round(t_sample.seconds) >= sampleinterval:
-                    
-                    # It's time to store a sample
-                    
+            # Update total energy count for this inverter
+            
+            total_energy_Wh[inv_idx] = u[varlookup["energytotal"]] * 1000
+            if debugging:
+                print("Inverter", serial, "reports", total_energy_Wh[inv_idx], "Wh total energy")
+            
+                                    
+            csvw = csvwriter_subset[inv_idx]    # Get output file object
+            
+            if not csvw:                        
+                # Open a CSV-file for this serial, if not already done
+                fname = basepath + str(inv_id) + "-" + serial + ".csv"
+                print("Will write to" + fname)
+                write_header = True
+                if os.path.isfile(fname):
+                    write_header = False        # Don't write header if file exists
+                ofile = open(fname, "a")        # Append data
+                csvw = csv.writer(ofile, delimiter='\t')
+                csvwriter_subset[inv_idx] = csvw
+                if write_header:
+                    csvw.writerow(["time"] + varheader[12:])    # Write header line
+                if reporting:
                     if verbose:
-                        print("Storing sample")
-                        print("Seconds since last sample:", t_sample.seconds)
-                        print("Next write due in:", loginterval - t_log.seconds)
-                        
-                    samples[inv_idx].append([time.isoformat()] + subset)            # Store sample in list
-                    csvwriter_raw[inv_idx].writerow([time.isoformat()] + list(u))   # Write all samples directly to temporary file (on RAM-disk)
-                    lastsampletime[inv_idx] = datetime.datetime.now()               # Update last sample time
+                        print("Initial report of energy total to server, inverter index", inv_idx)
+                    report.init(inv_idx, serial)
+                    report.send_total(inv_idx, total_energy_Wh[inv_idx])
+                         
+            subset = list(u[12:])           # Get a subset of the data, without serial and version numbers
+            subset[25] = hex(subset[25])    # Variable with unknown meaning, store as hex value
+            subset[26] = hex(subset[26])    # Variable with unknown meaning, store as hex value
 
-                if lastlogtime == 0 or round(t_log.seconds) >= loginterval:
-                    if verbose:
-                        print("Update time of last data write")
-                    if (lastlogtime):
-                        write_samples(True)
-                    lastlogtime = datetime.datetime.now()   # Update last log time
-                    
-            else:
+            if debugging:
+                print("Subset:", subset)
+            
+            # Determine if it's time to store a new sample and/or write our data
+            
+            t_sample = time - lastsampletime[inv_idx]   # Time since last sample stored
+            t_log = time - time                         # (Set t_log to zero)
+            if lastlogtime and lastlogtime < time:
+                t_log = time - lastlogtime              # Time since last data written
                 
-                # Data did not match our struct
+            if debugging:
+                print("Seconds since last sample:", t_sample.seconds)
+                print("Next sample due in:", sampleinterval - t_sample.seconds)
+                print("Seconds since last write:", t_log.seconds)
+                print("Next write due in:", loginterval - t_log.seconds)
+                
+            if round(t_sample.seconds) >= sampleinterval:
+                
+                # It's time to store a sample
                 
                 if verbose:
-                    print ("Data did not match struct.")
-                
-                break
-                
-            idx += offset + 1   # Advance index into the data we read from serial
+                    print("Storing sample")
+                    print("Seconds since last sample:", t_sample.seconds)
+                    print("Next write due in:", loginterval - t_log.seconds)
+                    
+                samples[inv_idx].append([time.isoformat()] + subset)            # Store sample in list
+                csvwriter_raw[inv_idx].writerow([time.isoformat()] + list(u))   # Write all samples directly to temporary file (on RAM-disk)
+                lastsampletime[inv_idx] = datetime.datetime.now()               # Update last sample time
 
+            if lastlogtime == 0 or round(t_log.seconds) >= loginterval:
+                if verbose:
+                    print("Update time of last data write")
+                if (lastlogtime):
+                    write_samples(True)
+                lastlogtime = datetime.datetime.now()   # Update last log time
+                
         else:
             
-            # No replies found in serial data, exit the loop
+            # Data did not match our struct
+            
+            if verbose:
+                print ("Data did not match struct.")
             
             break
+            
+        idx += offset + 1   # Advance index into the data we read from serial
+
+    else:
+        
+        # No replies found in serial data, continue main loop
+        
+        continue
     
             
     # Check if we should request data from the inverters
