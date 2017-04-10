@@ -236,44 +236,58 @@ def send_request (inv_id, cmd):
     connection.flush()
 
 
-def decode_response (data, inv_id, length):
+def decode_response (data):
 
     """ 
-    Try to decode an inverter-reply from serial data, 
-    returns a hash with offset, length, inverter_id, command, subcommand 
+    Try to decode an inverter-reply from serial data, checks CRC and
+    returns a hash with length, inverter_id, command, subcommand 
     """
     
     #try:
     if True:
     
-        if (len(data)) < length + 3:
-            if debugging:
-                print("Incomplete data block")
-            return None
-                     
-        cmd = data[0]                   # Command ID
-        subcmd = data[1]                # Subcommand ID
-        data_offset = 2                 # Start of data
-        data_length = length - 2        # Length of data
-        crc_lsb = data[length]          # Least-significant byte of CRC-16 over preceding bytes after STX
-        crc_msb = data[length + 1]      # Most-significant byte of CRC-16 over preceding bytes after STX
-        etx = data[length + 2]          # ETX-byte to signify end of message, should be 0x03
+        stx = data[0]
+        ack = data[1]
         
-        rvals = {'offset': offset, 'data_offset': data_offset, 'inv_id': inv_id, 'length': length, \
+        if stx != 0x02 or ack != 0x06:
+            if verbose:
+                print("Invalid reply, STX =", stx, "ACK =", ack)
+            return None
+        
+        inv_id = data[2]
+        length = data[3]
+        
+        if (len(data)) < length + 4 + 3:    # should be 4 bytes (STX + ACK + ID + LEN) + data length + 3 bytes (CRC16 + ETX) 
+            if verbose:
+                print("Incomplete data block of", len(data), "bytes, should be", length + 7, "bytes")
+            return None
+        
+        cmd = data[4]                   # Command ID
+        subcmd = data[5]                # Subcommand ID
+        
+        data_offset = 6                 # Start of data
+        data_length = length - 2        # Length of data
+        
+        crc_lsb = data[4 + length]      # Least-significant byte of CRC-16 over preceding bytes after STX
+        crc_msb = data[4 + length + 1]  # Most-significant byte of CRC-16 over preceding bytes after STX
+        
+        etx = data[4 + length + 2]      # ETX-byte to signify end of message, should be 0x03
+        
+        rvals = {'data_offset': data_offset, 'length': length, "inv_id": inv_id, \
                  'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
         
         if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
             
             if verbose:
-                print("ETX at", offset + 6 + data_length + 2, "is", etx, "but should be 3")
+                print("ETX at", length + 2, "is", etx, "but should be 3")
                 print(rvals)
             
             return None
             
         else:                                   # ETX is 0x03, we probably have a valid data block
             
-            crc_calc = crc16.calcData(data[offset + 1 : offset + 4 + length])
-            crc_msg = crc_msb << 8 | crc_lsb
+            crc_calc = crc16.calcData(data[1 : 4 + length])     # Calculate CRC-16 over message, excluding STX
+            crc_msg = crc_msb << 8 | crc_lsb                    # Compare with CRC transmitted at end of message
             
             if crc_calc != crc_msg:
                 
@@ -302,38 +316,41 @@ while True:     # Main loop
     while True:
         data = connection.read(1)   # Read one byte
         if data and data[0] == 0x02:     # Look for STX
-            data = connection.read(1)       # STX found, read another byte
-            if data and data[0] == 0x06: # Look for 0x06
-                break                       # 0x06 found, contine trying to read a full message
+            newdata = connection.read(1)       # STX found, read another byte
+            if newdata and newdata[0] == 0x06: # Look for ACK
+                data.append(newdata)        # 0x06 found, append to STX
+                break                       # contine trying to read a full message
             elif data and debugging:
-                print("Received STX 0x02, but invalid command:", data[0])
+                print("Received STX 0x02, but invalid ACK:", data[0])
         elif data and debugging:
             print("Ignoring byte:", data[0])
             
-    data = connection.read(2)
-    if data:
-        inv_id = data[0]               # Inverter ID on the RS485-bus
-        length = data[1]               # Response length (including CMD, excluding CRC and ETX)
+    newdata = connection.read(2)
+    inv_id = 0
+    if newdata:
+        data.append(newdata)
+        inv_id = newdata[0]            # Inverter ID on the RS485-bus
+        length = newdata[1]            # Response length (including CMD, excluding CRC and ETX)
     else:
         continue                       # On timeout, restart main loop
     
     if debugging:
         print("Found message from inverter", inv_id, "with length", length)
     
-    data = connection.read(length + 3)  # Read 'length' bytes + 2 bytes CRC + 1 byte ETX
+    newdata = connection.read(length + 3)  # Read 'length' bytes + 2 bytes CRC + 1 byte ETX
     
-    rvals = decode_response(data, inv_id, length)
+    if not newdata:                     # If we get a timeout, skip to next message
+        continue
+    
+    data.append(newdata)
+    rvals = decode_response(data)
         
     time = datetime.datetime.now()      # Current time
 
-    if data and rvals:
-        last_data = time                # Update time of last data read
-    
     if rvals:
         
-        offset = rvals['offset']
-    
-        inv_id = rvals['inv_id']       # Inverter ID on the RS485-bus
+        last_data = time                # Update time of last data read
+        
         inv_idx = inv_id - 1
         
         cmd = rvals['cmd']
@@ -447,8 +464,6 @@ while True:     # Main loop
             
             break
             
-        idx += offset + 1   # Advance index into the data we read from serial
-
     else:
         
         # No replies found in serial data, continue main loop
