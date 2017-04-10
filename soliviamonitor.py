@@ -319,7 +319,7 @@ while True:     # Main loop
             newdata = connection.read(1)       # STX found, read another byte
             data = bytearray(data)             # Make "bytes" a mutable byte-array, so we can append bytes 
             if newdata and newdata[0] == 0x06: # Look for ACK
-                data.append(newdata)        # 0x06 found, append to STX
+                data.extend(newdata)        # 0x06 found, append to STX
                 break                       # contine trying to read a full message
             elif data and debugging:
                 print("Received STX 0x02, but invalid ACK:", data[0])
@@ -329,7 +329,7 @@ while True:     # Main loop
     newdata = connection.read(2)
     inv_id = 0
     if newdata:
-        data.append(newdata)
+        data.extend(newdata)
         inv_id = newdata[0]            # Inverter ID on the RS485-bus
         length = newdata[1]            # Response length (including CMD, excluding CRC and ETX)
     else:
@@ -343,7 +343,7 @@ while True:     # Main loop
     if not newdata:                     # If we get a timeout, skip to next message
         continue
     
-    data.append(newdata)
+    data.extend(newdata)
     rvals = decode_response(data)
         
     time = datetime.datetime.now()      # Current time
