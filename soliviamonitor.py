@@ -315,14 +315,15 @@ while True:     # Main loop
     
     while True:
         data = connection.read(1)   # Read one byte
-        if data and data[0] == 0x02:     # Look for STX
+        if data and data[0] == 0x02:    # Look for STX
             newdata = connection.read(1)       # STX found, read another byte
-            data = bytearray(data)             # Make "bytes" a mutable byte-array, so we can append bytes 
-            if newdata and newdata[0] == 0x06: # Look for ACK
-                data.extend(newdata)        # 0x06 found, append to STX
-                break                       # contine trying to read a full message
-            elif data and debugging:
-                print("Received STX 0x02, but invalid ACK:", data[0])
+            data = bytearray(data)             # Make "bytes" a mutable byte-array, so we can append bytes
+            if newdata: 
+                if newdata[0] == 0x05 or newdata[0] == 0x06:    # ENQ or ACK
+                    data.extend(newdata)        # Append ACK to STX
+                    break                       # contine trying to read a full message
+                elif debugging:
+                    print("Received STX 0x02, but invalid ENQ/ACK:", data[0])
         elif data and debugging:
             print("Ignoring byte:", data[0])
             
@@ -336,7 +337,7 @@ while True:     # Main loop
         continue                       # On timeout, restart main loop
     
     if debugging:
-        print("Found message from inverter", inv_id, "with length", length)
+        print("Found message from/for inverter", inv_id, "with length", length)
     
     newdata = connection.read(length + 3)  # Read 'length' bytes + 2 bytes CRC + 1 byte ETX
     
@@ -344,7 +345,14 @@ while True:     # Main loop
         continue
     
     data.extend(newdata)
-    rvals = decode_response(data)
+    
+    
+    if data[1] == 0x05:                 # ENQ, marks start of request message
+        if debugging:
+            print("Found request-message for inverter", inv_id, "with length", length, "and CMD", data[2], "SUB", data[3])
+        continue                        # Currently we do not process requests, only replies
+    
+    rvals = decode_response(data)       # Process reply
         
     time = datetime.datetime.now()      # Current time
 
