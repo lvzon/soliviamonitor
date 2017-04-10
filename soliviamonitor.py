@@ -46,7 +46,7 @@ except ImportError:
     print("Will NOT report energy totals to an external server")
 
 verbose = 1                 # Verbosity flag
-debugging = 0               # Debugging flag
+debugging = 1               # Debugging flag
 inverters = 2               # Number of inverters (TODO: actually use this variable)
 basepath = "/root/delta/"   # Path where CSV output files should be saved 
 
@@ -243,7 +243,7 @@ def decode_response (data, inv_id, length):
     returns a hash with offset, length, inverter_id, command, subcommand 
     """
     
-    try:
+    #try:
     
         if (len(data)) < length + 3:
             if debugging:
@@ -256,7 +256,7 @@ def decode_response (data, inv_id, length):
         data_length = length - 2        # Length of data
         crc_lsb = data[length]          # Least-significant byte of CRC-16 over preceding bytes after STX
         crc_msb = data[length + 1]      # Most-significant byte of CRC-16 over preceding bytes after STX
-        etx = data[length + 3]          # ETX-byte to signify end of message, should be 0x03
+        etx = data[length + 2]          # ETX-byte to signify end of message, should be 0x03
         
         rvals = {'offset': offset, 'data_offset': data_offset, 'inv_id': inv_id, 'length': length, \
                  'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
@@ -286,10 +286,10 @@ def decode_response (data, inv_id, length):
                 
                 return rvals;
             
-    except:
+    #except:
         
-        print("Error decoding response:", str(sys.exc_info()[0]))
-        return None
+    #    print("Error decoding response:", str(sys.exc_info()[0]))
+    #    return None
         
 
             
