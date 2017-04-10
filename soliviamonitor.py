@@ -244,6 +244,7 @@ def decode_response (data, inv_id, length):
     """
     
     #try:
+    if True:
     
         if (len(data)) < length + 3:
             if debugging:
