@@ -317,6 +317,7 @@ while True:     # Main loop
         data = connection.read(1)   # Read one byte
         if data and data[0] == 0x02:     # Look for STX
             newdata = connection.read(1)       # STX found, read another byte
+            data = bytearray(data)             # Make "bytes" a mutable byte-array, so we can append bytes 
             if newdata and newdata[0] == 0x06: # Look for ACK
                 data.append(newdata)        # 0x06 found, append to STX
                 break                       # contine trying to read a full message
