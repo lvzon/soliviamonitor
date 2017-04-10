@@ -216,7 +216,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 
-def send_request (inv_id, cmd):
+def send_request (connection, inv_id, cmd):
     
     """ Send command (e.g. b'\x60\x01') to the inverter with id inv_id """
     
@@ -236,21 +236,84 @@ def send_request (inv_id, cmd):
     connection.flush()
 
 
+def get_message (connection, timeout):
+    
+    """ 
+    Attempt to read a Delta-message from a serial connection, 
+    with an optional time-out in seconds 
+    """
+    
+    connection.timeout = timeout    # Timeout for serial data read, in seconds
+    
+    data = connection.read(1)       # Read one byte
+
+    if data and data[0] == 0x02:    # Look for STX
+
+        newdata = connection.read(1)       # STX found, read another byte
+        data = bytearray(data)             # Make "bytes" a mutable byte-array, so we can append bytes
+
+        if newdata: 
+
+            if newdata[0] == 0x05 or newdata[0] == 0x06:    # ENQ or ACK
+                
+                data.extend(newdata)        # Append ACK to STX
+                
+                newdata = connection.read(2)    # Read 2 more bytes
+                
+                if newdata:
+                    data.extend(newdata)
+                    inv_id = newdata[0]            # Inverter ID on the RS485-bus
+                    length = newdata[1]            # Response length (including CMD, excluding CRC and ETX)
+                else:
+                    return None                    # Timeout, discard data
+                
+                if debugging:
+                    print("Found message from/for inverter", inv_id, "with length", length)
+                
+                newdata = connection.read(length + 3)  # Read 'length' bytes + 2 bytes CRC + 1 byte ETX
+                
+                if not newdata:                     # If we get a timeout, discard data
+                    return None
+                
+                data.extend(newdata)                # Append data to buffer and return the buffer
+                return data
+                
+
+            elif debugging:
+                print("Received STX 0x02, but invalid ENQ/ACK:", data[0])
+                
+            return None
+                
+    elif data and debugging:
+        print("Ignoring byte:", data[0])
+        
+    return None
+    
+
 def decode_response (data):
 
     """ 
-    Try to decode an inverter-reply from serial data, checks CRC and
-    returns a hash with length, inverter_id, command, subcommand 
+    Try to decode an inverter-messages from serial data and return 
+    a dictionary with message parameters (including length, inverter_id, 
+    command, subcommand).
+    Checks message validity, consistency and CRC, and returns None 
+    if a message is not valid. Request-messages are parsed, but are 
+    currently not returned. 
     """
     
     try:
     
         stx = data[0]
-        ack = data[1]
+        enqack = data[1]
         
-        if stx != 0x02 or ack != 0x06:
+        if stx != 0x02:
             if verbose:
-                print("Invalid reply, STX =", stx, "ACK =", ack)
+                print("Invalid message, STX =", stx)
+            return None
+                        
+        if enqack != 0x05 and enqack != 0x06:
+            if verbose:
+                print("Invalid message, ENQ/ACK =", enqack)
             return None
         
         inv_id = data[2]
@@ -272,8 +335,8 @@ def decode_response (data):
         
         etx = data[4 + length + 2]      # ETX-byte to signify end of message, should be 0x03
         
-        rvals = {'data_offset': data_offset, 'length': length, "inv_id": inv_id, \
-                 'data_length': data_length, 'cmd': cmd, 'subcmd': subcmd}
+        rvals = {'enqack': enqack, 'inv_id': inv_id, 'length': length, 'cmd': cmd, 'subcmd': subcmd, \
+                 'data_offset': data_offset, 'data_length': data_length}
         
         if etx != 0x03:                         # ETX isn't 0x03, data probably isn't valid
             
@@ -295,6 +358,11 @@ def decode_response (data):
                 
             else:
             
+                if enqack == 0x05:                 # ENQ, marks start of request message
+                    if debugging:
+                        print("Found request-message for inverter", inv_id, "with length", length, "and CMD", cmd, "SUB", subcmd)
+                    return None                     # Currently we do not return requests, only replies
+        
                 if debugging:
                     print("Found valid response:", rvals);
                 
@@ -310,48 +378,12 @@ def decode_response (data):
 
 while True:     # Main loop
 
-    connection.timeout = 1.0    # Timeout for serial data read, in seconds
-    
-    while True:
-        data = connection.read(1)   # Read one byte
-        if data and data[0] == 0x02:    # Look for STX
-            newdata = connection.read(1)       # STX found, read another byte
-            data = bytearray(data)             # Make "bytes" a mutable byte-array, so we can append bytes
-            if newdata: 
-                if newdata[0] == 0x05 or newdata[0] == 0x06:    # ENQ or ACK
-                    data.extend(newdata)        # Append ACK to STX
-                    break                       # contine trying to read a full message
-                elif debugging:
-                    print("Received STX 0x02, but invalid ENQ/ACK:", data[0])
-        elif data and debugging:
-            print("Ignoring byte:", data[0])
+    data = None
+
+    while not data:
+        data = get_message(connection, 1.0)   # Try to read a message, with a 1-second time-out
             
-    newdata = connection.read(2)
-    inv_id = 0
-    if newdata:
-        data.extend(newdata)
-        inv_id = newdata[0]            # Inverter ID on the RS485-bus
-        length = newdata[1]            # Response length (including CMD, excluding CRC and ETX)
-    else:
-        continue                       # On timeout, restart main loop
-    
-    if debugging:
-        print("Found message from/for inverter", inv_id, "with length", length)
-    
-    newdata = connection.read(length + 3)  # Read 'length' bytes + 2 bytes CRC + 1 byte ETX
-    
-    if not newdata:                     # If we get a timeout, skip to next message
-        continue
-    
-    data.extend(newdata)
-    
-    
-    if data[1] == 0x05:                 # ENQ, marks start of request message
-        if debugging:
-            print("Found request-message for inverter", inv_id, "with length", length, "and CMD", data[2], "SUB", data[3])
-        continue                        # Currently we do not process requests, only replies
-    
-    rvals = decode_response(data)       # Process reply
+    rvals = decode_response(data)       # Process message
         
     time = datetime.datetime.now()      # Current time
 
@@ -359,6 +391,8 @@ while True:     # Main loop
         
         last_data = time                # Update time of last data read
         
+        
+        inv_id = rvals['inv_id']
         inv_idx = inv_id - 1
         
         cmd = rvals['cmd']
@@ -487,6 +521,6 @@ while True:     # Main loop
         # If we haven't seen any data or reply in a while, send a request
         t_sample = time - lastsampletime[inv]
         if (t_data.seconds >= 1 and t_sample.seconds >= sampleinterval):          
-            send_request(inv + 1, b'\x60\x01')   # Send request for a data block (command 96 subcommand 1)
+            send_request(connection, inv + 1, b'\x60\x01')   # Send request for a data block (command 96 subcommand 1)
             # TODO: Check if inverters wait until the bus is free before sending data... 
             
