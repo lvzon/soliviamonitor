@@ -300,9 +300,9 @@ while True:     # Main loop
     
     while True:
         data = connection.read(1)   # Read one byte
-        if data and data[0] == b'\x02':     # Look for STX
+        if data and data[0] == 0x02:     # Look for STX
             data = connection.read(1)       # STX found, read another byte
-            if data and data[0] == b'\x06': # Look for 0x06
+            if data and data[0] == 0x06: # Look for 0x06
                 break                       # 0x06 found, contine trying to read a full message
             elif data and debugging:
                 print("Received STX 0x02, but invalid command:", data[0])
