@@ -304,13 +304,20 @@ while True:     # Main loop
             data = connection.read(1)       # STX found, read another byte
             if data and data[0] == b'\x06': # Look for 0x06
                 break                       # 0x06 found, contine trying to read a full message
-    
+            elif data and debugging:
+                print("Received STX 0x02, but invalid command:", data[0])
+        elif data and debugging:
+            print("Ignoring byte:", data[0])
+            
     data = connection.read(2)
     if data:
         inv_id = data[0]               # Inverter ID on the RS485-bus
         length = data[1]               # Response length (including CMD, excluding CRC and ETX)
     else:
         continue                       # On timeout, restart main loop
+    
+    if debugging:
+        print("Found message from inverter", inv_id, "with length", length)
     
     data = connection.read(length + 3)  # Read 'length' bytes + 2 bytes CRC + 1 byte ETX
     
