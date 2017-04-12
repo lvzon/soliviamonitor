@@ -503,9 +503,7 @@ while True:     # Main loop
             
             if verbose:
                 print ("Data did not match struct.")
-            
-            break
-            
+                        
     else:
         
         # No replies found in serial data, continue main loop
