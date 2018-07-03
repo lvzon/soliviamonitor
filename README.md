@@ -1,6 +1,7 @@
 # soliviamonitor
 Documentation and a python-script for monitoring the status of Delta Solivia RPI PV-inverters
 
+For a more complete Python application, please check out [Bruno Binet's delta-rpi](https://github.com/bbinet/delta-rpi) repository, which is loosely based on my code bus has been greatly extended.
 
 
 ### Physical connection
@@ -151,6 +152,6 @@ Some fields seem to be similar (the part number is EOE46010175, the serial is 22
 
 ### Credits
 
-Credits for figuring out the Delta Solivia communication protocol in general go to all the people on [https://forums.whirlpool.net.au/forum-replies.cfm?t=1901079](this thread).
+Credits for figuring out the Delta Solivia communication protocol in general go to all the people on [this thread](https://forums.whirlpool.net.au/forum-replies.cfm?t=1901079).
 Special thanks go out to Bram Langen for figuring out that control character processing may interfere with communications in Python, and how to really disable all special character processing on a Linux serial device.
     
