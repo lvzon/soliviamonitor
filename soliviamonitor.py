@@ -5,7 +5,7 @@
 # A python-script for monitoring the status of Delta Solivia RPI PV-inverters
 # Tested with Delta Solivia RPI M15A and M20A (European three-phase models)
 
-# Copyright (c) 2016, 2017 Levien van Zon (levien at zonnetjes.net)
+# Copyright (c) 2016-2018 Levien van Zon (levien at zonnetjes.net)
 
 # MIT License
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -59,16 +59,16 @@ connection = serial.Serial('/dev/ttyUSB0',19200,timeout=0.2);   # Serial device
 
 rvars = (("partno", "11s", 11),
         ("serial", "18s", 18),
-        ("", "6s", 6),
+        ("fwrev_sap", "6s", 6),
         ("fwrev_pwr_maj", "B", 1),
         ("fwrev_pwr_min", "B", 1),
-        ("", "2s", 2),
+        ("fwrev_pwr_date", "2s", 2),
         ("fwrev_sts_maj", "B", 1),
         ("fwrev_sts_min", "B", 1),
-        ("", "2s", 2),
+        ("fwrev_sts_date", "2s", 2),
         ("fwrev_disp_maj", "B", 1),
         ("fwrev_disp_min", "B", 1),
-        ("", "2s", 2),
+        ("fwrev_disp_date", "2s", 2),
         ("ac1V", "H", 2, -1, "V"),
         ("ac1I", "H", 2, -2, "A", "AphA"),
         ("ac1P", "H", 2, 0, "W"),
@@ -94,13 +94,30 @@ rvars = (("partno", "11s", 11),
         ("dc2I", "H", 2, -2, "A"),
         ("dc2P", "H", 2, 0, "W"),
         ("power", "H", 2, 0, "W"),
-        ("", "H", 2),
-        ("", "H", 2),
+        ("bus+V", "H", 2, -1, "V"),
+        ("bus-V", "H", 2, -1, "V"),
         ("energytotal_day", "I", 4, 0, "Wh"),
         ("feedintime_day", "I", 4, 0, "s"),
         ("energytotal", "I", 4, 0, "kWh"),
-        ("", "I", 4),
-        ("temp", "H", 2, 0, "C", "TmpSnk"))
+        ("feedintime_total", "I", 4, 0, "s"),
+        ("temp", "H", 2, 0, "C", "TmpSnk"),
+        ("status_ac1", "B", 1),
+        ("status_ac2", "B", 1),
+        ("status_ac3", "B", 1),
+        ("status_ac4", "B", 1),
+        ("status_dc1", "B", 1),
+        ("status_dc2", "B", 1),
+        ("status_error", "B", 1),
+        ("status_error_ac1", "B", 1),
+        ("status_error_global1", "B", 1),
+        ("status_error_cpu", "B", 1),
+        ("status_error_global2", "B", 1),
+        ("limits_ac1", "B", 1),
+        ("limits_ac2", "B", 1),         
+        ("status_error_global3", "B", 1),
+        ("limits_dc1", "B", 1),
+        ("limits_dc2", "B", 1),         
+        ("status_history", "20s", 20))
 
 
 structstr = ">"     # Initial struct description string for the data block
