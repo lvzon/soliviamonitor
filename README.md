@@ -1,7 +1,7 @@
 # soliviamonitor
 Documentation and a python-script for monitoring the status of Delta Solivia RPI PV-inverters
 
-For a more complete Python application, please check out [Bruno Binet's delta-rpi](https://github.com/bbinet/delta-rpi) repository, which is loosely based on my code bus has been greatly extended.
+For a more complete Python application, please check out [Bruno Binet's delta-rpi](https://github.com/bbinet/delta-rpi) repository, which is loosely based on my code but has been greatly extended.
 
 
 ### Physical connection
